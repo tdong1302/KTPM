@@ -18,8 +18,8 @@ env/
 htmlcov/
 coverage.xml
 
-benchmark/results/*
-!benchmark/results/.gitkeep
+# Raw benchmark output IS committed: the course report needs the evidence behind
+# every number in docs/benchmark.md.
 
 .idea/
 .vscode/
