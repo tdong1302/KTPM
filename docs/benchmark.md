@@ -28,11 +28,12 @@ Ghi lại các thông tin sau cho mỗi lần chạy (script
 
 ### Trên Kaggle (cấu hình chuẩn)
 
-Bật **Internet** trong notebook settings, rồi:
+Kaggle là notebook, không có terminal: chạy trong ô code, thêm `!` phía trước.
+Bật **Internet** trong Session options, rồi:
 
 ```python
-!git clone <repo url> eventhub-ktpm
-%cd eventhub-ktpm
+!git clone https://github.com/tdong1302/KTPM.git /kaggle/working/ktpm
+%cd /kaggle/working/ktpm
 !pip install -q -e ".[bench]"
 !python benchmark/kaggle/run_baseline.py --scenario s2
 ```
@@ -49,6 +50,7 @@ locust -f benchmark/locustfile.py --headless --host http://localhost:8000 \
        --users 100 --spawn-rate 20 --run-time 5m --csv benchmark/results/s2-local
 ```
 
+Hướng dẫn Kaggle từng bước: [benchmark/kaggle/README.md](../benchmark/kaggle/README.md).
 Kịch bản chi tiết: [benchmark/scenarios.md](../benchmark/scenarios.md).
 
 ## 3. Kết quả BASELINE (Pha 1)

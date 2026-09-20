@@ -3,14 +3,17 @@
 Kaggle gives a Python runtime with root access and no Docker, so PostgreSQL is installed
 with apt and started directly. Enable "Internet" in the notebook settings first.
 
-In a notebook cell:
+Kaggle has no terminal: run these in a notebook cell, with a leading "!".
 
-    !git clone <your repo url> eventhub-ktpm
-    %cd eventhub-ktpm
+    !git clone https://github.com/tdong1302/KTPM.git /kaggle/working/ktpm
+    %cd /kaggle/working/ktpm
     !pip install -q -e ".[bench]"
     !python benchmark/kaggle/run_baseline.py --scenario s2
 
 Then download whatever landed in ``benchmark/results/``.
+
+Step by step guide, including how to read the CSV into docs/benchmark.md:
+benchmark/kaggle/README.md
 
 This script only produces measurements; it never writes conclusions. Interpretation
 belongs in docs/benchmark.md, written by a human after reading the numbers.
