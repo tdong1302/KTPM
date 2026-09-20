@@ -1,0 +1,22 @@
+TRÍCH XUẤT, KHÔNG PHẢI FILE GỐC.
+
+Đây là bảng do pandas in ra từ s3_stats.csv trên Kaggle, chép lại nguyên văn. File CSV gốc
+(s3_stats.csv, s3_failures.csv, s3_stats_history.csv, s3_exceptions.csv) CHƯA được tải về.
+Cần copy từ Kaggle vào thư mục này để đủ bằng chứng thô.
+
+Kịch bản S3 — 100 user, spawn rate 50/s, 2 phút, 1 sự kiện duy nhất.
+Thời lượng thực tế suy ra từ throughput: 118,8 s.
+
+  Type                             Name  Request Count  Failure Count  Median Response Time  Average Response Time  Min Response Time  95%  99%  Requests/s
+   GET             /api/events [warmup]            100              0                   870             932.371442         174.524608 1700 2200    0.841937
+DELETE DELETE /api/bookings/{id} [auth]            467              0                   370             399.394881          42.985896  660  880    3.931846
+   GET      GET /api/bookings/me [auth]           1840              0                   210             226.523726          23.716353  400  510   15.491641
+   GET                  GET /api/events           7881              0                   190             224.221918           9.745829  370 1400   66.353055
+   GET             GET /api/events/{id}           3073              0                   190             237.486744           7.393352  410 1600   25.872724
+   GET             GET /api/events?city           4663              0                   190             217.502572           9.996753  360  930   39.259523
+  POST             POST /api/auth/login             30              0                  3800            3838.034493        2266.729508 4600 4600    0.252581
+  POST          POST /api/auth/register             30              0                  3200            3103.719109        1617.399768 4200 5100    0.252581
+  POST        POST /api/bookings [auth]           1357              0                   340             362.595772          71.220512  630  810   11.425085
+   NaN                       Aggregated          19441              0                   200             252.453962           7.393352  450 1800  163.680973
+
+Kiểm tra bất biến sau khi chạy: cột invariant_holds = t (đã bán + còn lại == tổng số vé).
