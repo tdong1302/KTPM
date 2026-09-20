@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.git/
+.github/
+tests/
+benchmark/
+docs/
+alembic/
+*.db
+*.sqlite3
+.env
