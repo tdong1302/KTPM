@@ -25,8 +25,13 @@ do [`benchmark/kaggle/run_baseline.py`](../benchmark/kaggle/run_baseline.py) t�
 | App server | `uvicorn --workers 1` |
 | `BCRYPT_ROUNDS` | 12 |
 | `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | 5 / 10 (tối đa 15 kết nối) |
-| Git commit | `73ca1ceca7d36e86846e82f58e42b77eea5f2c0c` |
+| Git commit | `73ca1ceca7d3…` (xem ghi chú bên dưới) |
 | Ngày chạy | 2026-09-20 11:41 UTC |
+
+> **Về commit hash:** hash ghi trong các file `*-environment.txt` là hash tại thời điểm chạy
+> benchmark. Lịch sử git sau đó được viết lại (chỉ sửa commit message, **không** đổi một byte nào
+> trong cây mã nguồn), nên hash hiện tại của commit đó đã khác. Các file bằng chứng thô cố ý
+> không được sửa.
 
 ## 2. Cách chạy
 
@@ -112,7 +117,7 @@ Tài nguyên tiến trình API:
 
 ### S3 — Write contention trên sự kiện khan hiếm (100 users, 2 phút)
 
-Nguồn: [`benchmark/results/s3_stats_excerpt.txt`](../benchmark/results/s3_stats_excerpt.txt) ·
+Nguồn: [`benchmark/results/s3_stats.csv`](../benchmark/results/s3_stats.csv) ·
 spawn rate 50/s · thời lượng thực tế 118,8 s · **1 sự kiện duy nhất** nên mọi request đặt vé đều
 tranh cùng một dòng dữ liệu.
 

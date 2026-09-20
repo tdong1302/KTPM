@@ -21,6 +21,9 @@ coverage.xml
 # Raw benchmark output IS committed: the course report needs the evidence behind
 # every number in docs/benchmark.md.
 
+# Local working notes, not part of the project.
+CLAUDE.md
+
 .idea/
 .vscode/
 *.swp

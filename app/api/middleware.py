@@ -1,9 +1,8 @@
 """Authentication middleware.
 
-This is the single place where a request is authenticated. It plays the same role as the
-Spring Security filter chain in the reference project: it runs before any route handler,
-verifies the bearer token once, and rejects unauthenticated calls to protected routes.
-No route handler repeats this logic - handlers only read the result via the thin
+This is the single place where a request is authenticated. It runs before any route
+handler, verifies the bearer token once, and rejects unauthenticated calls to protected
+routes. No route handler repeats this logic - handlers only read the result via the thin
 ``current_principal`` dependency in ``app.api.deps``.
 """
 

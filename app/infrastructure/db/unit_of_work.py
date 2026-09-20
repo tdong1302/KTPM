@@ -13,9 +13,8 @@ class SqlAlchemyUnitOfWork:
     """Opens a session on entry and always closes it on exit.
 
     A use case that raises leaves the transaction rolled back, so a failed booking can
-    never leave the ticket counter decremented. This is why the hand-rolled compensating
-    release found in the reference project is unnecessary here: events and bookings share
-    one database and one transaction.
+    never leave the ticket counter decremented. Events and bookings share one database and
+    one transaction, so no compensating action is needed to undo a partial write.
 
     Entering is re-entrant (a service may call another service) so only the outermost
     block owns the session.

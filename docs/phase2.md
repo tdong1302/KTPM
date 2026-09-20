@@ -2,8 +2,9 @@
 
 > **Trạng thái: CHƯA BẮT ĐẦU.**
 > Tài liệu này chỉ liệt kê các **ứng viên** cải tiến và cách đo chúng. Chưa có cải tiến nào được
-> triển khai và chưa có kết luận nào được rút ra — vì chưa có số liệu baseline.
-> Thứ tự ưu tiên thật sự chỉ được quyết định **sau khi** đọc số liệu ở [benchmark.md](benchmark.md).
+> triển khai.
+> Đã có số liệu baseline cho kịch bản S2 và S3 ([benchmark.md](benchmark.md)); S1 và S4 chưa chạy.
+> Thứ tự ưu tiên chỉ được chốt sau khi có S4, vì đó mới là kịch bản chỉ ra nút thắt.
 
 ## Quy trình bắt buộc
 
@@ -56,8 +57,13 @@ và ghi lại TTL chấp nhận được.
 **Baseline:** `SELECT ... FOR UPDATE` trên dòng sự kiện. Đúng đắn tuyệt đối, nhưng mọi thao tác đặt
 vé cho **cùng một sự kiện** đều bị xếp hàng.
 
-**Cách xác nhận:** so sánh throughput ghi giữa S3 (một sự kiện khan hiếm) và S2 (500 sự kiện). Chênh
-lệch lớn chỉ đích danh khoá là nút thắt.
+**Đã đo.** So sánh S3 (một sự kiện khan hiếm) với S2 (500 sự kiện), chuẩn hoá theo độ trễ đọc
+trong cùng lần chạy: đường đặt vé đi từ 1,30× lên 1,79× một request đọc, thông lượng giảm 7,6 %.
+Phần đuôi chịu ảnh hưởng nặng hơn trung vị (p99 cửa sổ xấu nhất 720 ms → 1 300 ms), nhưng **không
+lan sang các endpoint đọc**. Chi tiết ở [benchmark.md](benchmark.md) mục 4.4 và 4.5.
+
+**Hệ quả:** cái giá của khoá khiêm tốn hơn dự đoán ban đầu. Cần cân nhắc kỹ trước khi thay nó —
+và mức giảm 7,6 % vẫn có thể nằm trong biên nhiễu, phải chạy lặp mới khẳng định được.
 
 **Các phương án, đều phải giữ bất biến không bán vượt vé:**
 
@@ -99,21 +105,21 @@ trang 1 so với trang 100.
 **Lưu ý quan trọng:** nếu có thay đổi tham số này, phải ghi rõ và coi đó là một đánh đổi **bảo mật**,
 không được trình bày như một "tối ưu hiệu năng" thuần tuý.
 
-## Những anti-pattern của hệ thống tham khảo đã chủ động tránh
+## Ba tính chất của baseline cần giữ khi cải tiến
 
-Ghi lại ở đây vì chúng là dữ liệu đầu vào hữu ích cho phần phân tích Pha 2:
+Baseline hiện có ba tính chất khiến nó dễ đo và dễ suy luận. Bất kỳ cải tiến nào ở Pha 2 làm mất
+một trong số đó đều phải nêu rõ cái giá phải trả:
 
-1. **Ghi trên đường đọc.** EventHub gốc gọi "tự động hoàn thành sự kiện hết hạn" (một câu `UPDATE`
-   hàng loạt) bên trong `search()` và `findById()`, khiến mọi request đọc trở thành một thao tác
-   ghi. Baseline này không làm vậy; nếu cần, việc đó thuộc về một job nền.
+1. **Không ghi trên đường đọc.** Không request đọc nào kích hoạt một thao tác ghi ẩn. Nhờ vậy độ
+   trễ đọc đo được là độ trễ đọc thật.
 
-2. **Gọi mạng trong vòng lặp (N+1).** `TicketResaleService` của bản gốc gọi Feign cho từng listing
-   khi dựng danh sách. Baseline này không có lời gọi liên tiến trình nào trên đường phục vụ request.
+2. **Không gọi liên tiến trình trên đường phục vụ request.** Toàn bộ xử lý nằm trong một tiến
+   trình và một database, nên không có độ trễ mạng nào lẫn vào số liệu.
 
-3. **Saga bù trừ tự viết.** Vì bản gốc tách event và booking thành hai service với hai database,
-   nó phải tự viết logic hoàn tác thủ công. Baseline dùng một database và một transaction, nên vấn
-   đề đó biến mất. Nếu Pha 2 có ý định tách service trở lại, **cái giá này phải được nêu rõ** trong
-   phần đánh đổi.
+3. **Một transaction cho một thao tác nghiệp vụ.** Đặt vé trừ tồn kho và ghi booking trong cùng một
+   transaction, nên thao tác thất bại không để lại trạng thái dở dang. Nếu Pha 2 tách thành nhiều
+   dịch vụ với nhiều database, tính chất này mất đi và phải thay bằng saga có bù trừ — **cái giá
+   đó phải được nêu rõ trong phần đánh đổi**, không được coi là miễn phí.
 
 ## Điều không được làm
 

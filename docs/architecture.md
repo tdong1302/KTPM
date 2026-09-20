@@ -7,14 +7,13 @@
 > Phân tầng rõ: API → Nghiệp vụ → Truy cập dữ liệu. **Tầng nghiệp vụ không import framework web
 > hay thư viện DB.**
 
-Đây là ràng buộc khó nhất, vì cách viết FastAPI/Spring thông thường sẽ để `Session`, `Depends`,
-`Page`, `HTTPException` rò rỉ thẳng vào service. Project EventHub gốc vi phạm điều này rất rõ:
-`EventService.java` import `org.springframework.data.domain.Page`, `Pageable`, `Sort`,
-`AccessDeniedException` và nhận thẳng `CustomUserPrincipal` — một kiểu của tầng security;
-`BookingService.java` còn import cả `feign.FeignException` và Jackson `ObjectMapper`.
+Đây là ràng buộc khó nhất. Cách viết thông thường với FastAPI (hoặc Spring) sẽ để `Session`,
+`Depends`, kiểu phân trang của thư viện ORM, hay `HTTPException` rò rỉ thẳng vào tầng service — lúc
+đó tầng nghiệp vụ không còn kiểm thử được nếu thiếu database và HTTP server, và việc đổi framework
+sẽ kéo theo sửa toàn bộ logic nghiệp vụ.
 
-Baseline này chọn **Ports & Adapters (hexagonal)** để ràng buộc đó thành sự thật chứ không chỉ là
-quy ước.
+Hệ thống chọn **Ports & Adapters (hexagonal)** để biến ràng buộc đó thành sự thật kiểm chứng được,
+chứ không chỉ là quy ước.
 
 ## 2. Sơ đồ tầng
 
@@ -87,7 +86,8 @@ bcrypt — cả bộ hoàn thành trong dưới một giây.
 
 **Không truyền principal vào tầng nghiệp vụ.** Service nhận `actor_id: int` và
 `actor_role: UserRole` (kiểu của domain). Tầng nghiệp vụ không cần biết người dùng được xác thực
-bằng JWT, session hay gì khác. Đây chính là chỗ EventHub gốc mắc lỗi.
+bằng JWT, session hay cơ chế nào khác — nhờ vậy đổi cơ chế xác thực không phải đụng vào logic
+nghiệp vụ.
 
 **Tự định nghĩa `Page`.** [`app/domain/models.py`](../app/domain/models.py) khai báo một dataclass
 `Page[T]` thay vì dùng kiểu phân trang của thư viện persistence.
@@ -131,25 +131,28 @@ là ẩn danh; còn gửi tới route được bảo vệ thì trả 401 kèm m�
 `TOKEN_INVALID`). Hành vi này được test trong
 [`tests/integration/test_auth_and_middleware.py`](../tests/integration/test_auth_and_middleware.py).
 
-## 5. Những gì cố ý không đưa vào baseline
+## 5. Quyết định phạm vi
 
-| Bỏ | Lý do |
+Phạm vi Pha 1 được giữ hẹp một cách có chủ ý. Mỗi chức năng đưa vào đều phải phục vụ một yêu cầu
+của đề bài; chức năng nào chỉ làm hệ thống to ra mà không thêm giá trị kiểm chứng thì để lại.
+
+| Ngoài phạm vi | Lý do |
 |---|---|
-| Mua bán lại vé (resale marketplace) | Một bounded context thứ hai (~800 LOC ở bản gốc), không thuộc yêu cầu Pha 1 |
-| Mã QR (ZXing, lưu base64 trong cột TEXT) | Thêm dependency, làm phình dòng dữ liệu và nhiễu số liệu benchmark |
-| Payment service | Bản gốc dùng provider `DEMO_INFINITE_FUNDS` — hoàn toàn giả, không có giá trị nghiệp vụ |
-| Notification service + RabbitMQ | Chỉ ghi vài dòng DB; đề bài yêu cầu không tự thêm khi chưa cần |
-| Eureka + API Gateway + OpenFeign | Chỉ tồn tại để phục vụ microservices; baseline là monolith một process |
-| Upload ảnh (Cloudinary / đĩa cục bộ) | I/O ngoài, làm nhiễu số liệu đo |
-| Xác thực email, quên mật khẩu, refresh token rotation | Ngoài phạm vi "hỗ trợ đăng nhập" |
-| Frontend | Không phục vụ trực tiếp yêu cầu nào của Pha 1 |
+| Thanh toán | Không có cổng thanh toán thật; một module giả lập chỉ thêm mã nguồn mà không thêm nghiệp vụ nào kiểm chứng được |
+| Mã QR cho vé | Thêm dependency và làm phình kích thước dòng dữ liệu, gây nhiễu cho số liệu đo |
+| Mua bán lại vé | Là một bounded context thứ hai với vòng đời sở hữu riêng; vượt xa yêu cầu Pha 1 |
+| Thông báo + message queue | Chỉ ghi thêm vài dòng dữ liệu, nhưng kéo theo cả một hạ tầng hàng đợi |
+| Service discovery + API gateway | Chỉ có ý nghĩa với kiến trúc nhiều dịch vụ; Pha 1 là một tiến trình duy nhất |
+| Upload ảnh | I/O ra hệ thống ngoài, làm nhiễu số liệu benchmark |
+| Xác thực email, quên mật khẩu, refresh token | Vượt phạm vi yêu cầu "hỗ trợ đăng nhập" |
+| Giao diện người dùng | Không phục vụ trực tiếp yêu cầu nào của Pha 1 |
 
-Ngoài ra, có hai khoản **nợ kỹ thuật của bản gốc được chủ động không mang sang**:
+Hai nguyên tắc thiết kế được áp dụng xuyên suốt và đáng nêu vì chúng ảnh hưởng tới số liệu đo:
 
-1. Enum `BookingStatus` của bản gốc khai báo `PENDING` và `EXPIRED` nhưng không bao giờ dùng
-   (booking tạo ra là `CONFIRMED` ngay). Baseline chỉ khai báo trạng thái thực sự dùng.
-2. Bản gốc gọi hàm "tự động hoàn thành sự kiện hết hạn" **bên trong mỗi lần search và mỗi lần
-   findById**, biến mọi request đọc thành một thao tác ghi. Baseline không làm vậy.
+1. **Chỉ khai báo trạng thái thực sự được dùng.** `BookingStatus` chỉ có `CONFIRMED` và `CANCELLED`.
+   Trạng thái khai báo nhưng không bao giờ đạt tới chỉ gây hiểu nhầm khi đọc mã nguồn.
+2. **Không ghi trên đường đọc.** Không có tác vụ dọn dẹp hay cập nhật trạng thái nào được gọi bên
+   trong request đọc. Việc đó thuộc về một job nền, nếu sau này cần.
 
 ## 6. Hai quyết định có chủ ý, để dành cho Pha 2
 
