@@ -77,6 +77,20 @@ pytest tests/concurrency -v
 Bốn kịch bản: 20 người tranh 1 vé cuối; 40 người tranh 10 vé; đặt theo lô 3 vé trên 10 vé; và huỷ
 vé đồng thời phải hoàn lại đúng số vé đã giữ.
 
+#### Kiểm chứng rằng test này thực sự nhạy
+
+Một test đồng thời "xanh" chưa chứng minh được điều gì — nó có thể xanh vì may mắn về thời điểm,
+chứ không phải vì khoá hoạt động. Ngày 2026-09-20 đã chạy một phép thử đối chứng trên PostgreSQL 16
+(20 luồng cùng tranh 1 vé cuối):
+
+| Cấu hình | Số người mua được | Kết luận |
+|---|---|---|
+| `get_for_update` thật (`SELECT ... FOR UPDATE`) | **1** | Không bán vượt |
+| Tạm thay `get_for_update` bằng đọc thường | **20** | Bán vượt 20 lần |
+
+Nghĩa là khoá dòng chính là thứ tạo ra tính đúng đắn, và bộ test sẽ phát hiện ngay nếu ai đó gỡ nó
+ra. Phép thử đối chứng này chạy ngoài repo (monkeypatch trong một script tạm), không sửa mã nguồn.
+
 ## Những gì hiện CHƯA có
 
 - Chưa chạy load test thật để lấy số liệu (hạ tầng đã sẵn sàng, xem [benchmark.md](benchmark.md)).
