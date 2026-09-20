@@ -91,7 +91,12 @@ Phân bố tải: đọc công khai 79,2 % · đọc có xác thực 10,1 % · g
 đăng ký/đăng nhập 0,1 %.
 
 **Không có một lỗi nào** trên 47 612 request
-([`s2_failures.csv`](../benchmark/results/s2_failures.csv) rỗng).
+([`s2_failures.csv`](../benchmark/results/s2_failures.csv) và
+[`s2_exceptions.csv`](../benchmark/results/s2_exceptions.csv) đều rỗng).
+
+> ⚠️ **p95/p99 trong bảng trên bị nhiễu bởi 20 giây dồn tải đầu tiên** — xem mục 4.5. Ở trạng thái
+> ổn định, p99 tổng hợp là **530 ms** chứ không phải 640 ms. Dùng số ổn định khi so sánh giữa các
+> kịch bản.
 
 Tài nguyên tiến trình API:
 
@@ -121,6 +126,10 @@ tranh cùng một dòng dữ liệu.
 | Số bị từ chối vì hết vé (409) | *(chưa tách được)* |
 | Tỉ lệ lỗi thật (5xx) | **0,00 %** (0 / 19 441 request toàn hệ thống) |
 | **Bất biến `đã_bán + còn_lại == tổng`** | ✅ **đúng** (`invariant_holds = t`) |
+
+> ⚠️ **p99 toàn cuộc 810 ms và p99 tổng hợp 1 800 ms bị nhiễu nặng bởi giai đoạn dồn tải**
+> (spawn 50/s). Ở trạng thái ổn định p99 tổng hợp chỉ là 580 ms. Xem mục 4.5 — đây là hiện tượng
+> của bộ đo, không phải của hệ thống.
 
 > **Hạn chế của bộ đo:** `locustfile.py` cố ý đánh dấu `409 Sold out` là *success*, vì hết vé là
 > kết quả nghiệp vụ đúng chứ không phải lỗi — nếu tính là lỗi thì error rate mất hết ý nghĩa. Hệ quả
@@ -244,6 +253,10 @@ của điều kiện nền:
 
 Cùng cách tính với p95: **1,27× → 1,70×**.
 
+Tỉ lệ này **không đổi khi tính lại chỉ trên trạng thái ổn định** (bỏ 20 giây dồn tải đầu, xem mục
+4.5): p50 1,30× → 1,79× và p95 1,28× → 1,80×. Nghĩa là kết luận về chi phí của khoá vững, không phụ
+thuộc vào nhiễu lúc khởi động.
+
 **Kết luận:** khi toàn bộ tải ghi dồn vào một dòng, đường đặt vé từ chỗ đắt hơn một request đọc
 1,3 lần trở thành đắt hơn **1,8 lần**. Thông lượng đặt vé giảm từ 12,36 xuống 11,43 req/s
 (**−7,6 %**). Đây chính là cái giá phải trả cho việc không bao giờ bán vượt vé.
@@ -259,25 +272,64 @@ một vé nào**. Điều này khớp với phép thử đối chứng đã ghi 
 [testing.md](testing.md#kiểm-chứng-rằng-test-này-thực-sự-nhạy): gỡ khoá ra thì 20 luồng cùng mua
 được một vé cuối.
 
-### 4.5. Đuôi độ trễ xấu đi rõ rệt khi có tranh chấp
+### 4.5. Đuôi độ trễ: giai đoạn dồn tải làm nhiễu số liệu toàn cuộc
 
-Trong khi p50 của S3 **tốt hơn** S2 (200 ms so với 240 ms), phần đuôi lại xấu đi nhiều:
+> **Đính chính.** Ở bản trước của tài liệu này, chúng tôi nêu giả thuyết rằng p99 tổng hợp nhảy từ
+> 640 ms lên 1 800 ms là do request giữ khoá chặn đầu hàng các request đọc, đồng thời ghi nhận một
+> cách giải thích cạnh tranh là giai đoạn dồn tải. Sau khi có `*_stats_history.csv`, **cách giải
+> thích thứ hai mới đúng**. Giả thuyết chặn đầu hàng lên request đọc bị bác bỏ.
 
-| Chỉ số | S2 | S3 | Thay đổi |
+Tách theo thời gian, bỏ **20 giây đầu**, bức tranh khác hẳn:
+
+| Chỉ số | S2 toàn cuộc | S3 toàn cuộc | S2 ổn định | S3 ổn định |
+|---|---|---|---|---|
+| p99 tổng hợp | 640 ms | **1 800 ms** | 530 ms | **580 ms** |
+
+Chênh lệch thật ở trạng thái ổn định chỉ là **+9 %**, không phải +181 %. Toàn bộ phần chênh còn lại
+nằm trong 20 giây đầu tiên.
+
+#### Nguyên nhân: cơn bão bcrypt lúc dồn tải
+
+| Cửa sổ | S2 (spawn 20/s) | S3 (spawn 50/s) |
+|---|---|---|
+| t = 0–10 s | p50 550 ms, p99 3 800 ms | p50 **1 500 ms**, p99 **4 600 ms** |
+| t = 10–20 s | p50 340 ms, p99 3 800 ms | p50 220 ms, p99 4 600 ms |
+| t ≥ 20 s | p50 230–250 ms, p99 470–600 ms | p50 180–210 ms, p99 560–680 ms |
+
+Khoảng 30 trong số 100 người dùng ảo thuộc lớp `TicketBuyer`, và mỗi người **đăng ký rồi đăng nhập
+ngay khi khởi động**. Mỗi thao tác đó tốn 3–4 giây bcrypt (mục 4.3). S3 dồn 100 người trong 2 giây
+nên cả 30 lần băm mật khẩu ập vào cùng lúc trên 4 vCPU; S2 rải trong 5 giây nên nhẹ hơn. Đây là hiện
+tượng của **bộ đo**, không phải của hệ thống dưới tải ổn định.
+
+#### Hệ quả: bộ đo cần sửa
+
+Percentile toàn cuộc mà Locust báo cáo **đang bị nhiễu bởi giai đoạn dồn tải**, và mức nhiễu phụ
+thuộc spawn rate — vốn khác nhau giữa S2 (20/s) và S3 (50/s). Nghĩa là **p99 toàn cuộc của hai kịch
+bản không so sánh trực tiếp được với nhau**.
+
+Cách sửa: thêm cờ `--reset-stats` cho Locust (xoá thống kê ngay khi dồn đủ người dùng), hoặc tiếp
+tục tính lại từ `*_stats_history.csv` như mục này đã làm. **Chưa sửa** — nếu sửa thì phải áp dụng
+cho cả số liệu BEFORE lẫn AFTER.
+
+#### Điều thực sự đúng: tranh chấp làm xấu đuôi của *đường ghi*, không phải của đường đọc
+
+Ở trạng thái ổn định, p99 cao nhất quan sát được trong một cửa sổ 10 giây bất kỳ:
+
+| Endpoint | S2 | S3 | Thay đổi |
 |---|---|---|---|
-| p99 tổng hợp | 640 ms | **1 800 ms** | **+181 %** |
-| p99 `GET /api/events` | 570 ms | 1 400 ms | +146 % |
-| p99 `GET /api/events/{id}` | 600 ms | 1 600 ms | +167 % |
-| p99 `POST /api/bookings` | 630 ms | 810 ms | +29 % |
+| `GET /api/events` | 580 ms | 500 ms | −14 % |
+| `GET /api/events/{id}` | 610 ms | 630 ms | +3 % |
+| `GET /api/bookings/me` | 710 ms | 590 ms | −17 % |
+| `POST /api/bookings` | 720 ms | **1 300 ms** | **+81 %** |
+| `DELETE /api/bookings/{id}` | 910 ms | **1 100 ms** | **+21 %** |
 
-Đáng chú ý là **các request đọc — vốn không hề đụng tới khoá — lại có đuôi xấu hơn cả request ghi**.
-Giả thuyết: request giữ khoá chiếm giữ thread trong threadpool và kết nối trong pool (tối đa 15),
-làm các request đọc phía sau bị chặn đầu hàng (head-of-line blocking).
+Các endpoint đọc **không** xấu đi — thậm chí còn tốt lên, đúng như kỳ vọng vì danh mục chỉ còn 1 sự
+kiện. Chỉ **đường ghi** chịu ảnh hưởng, và chịu ở phần đuôi nặng hơn hẳn phần trung vị: p50 chỉ tăng
+13 % trong khi p99 cửa sổ xấu nhất tăng 81 %.
 
-**Chưa kết luận được.** Có một cách giải thích cạnh tranh: S3 dùng spawn rate 50/s (S2 là 20/s) và
-chỉ chạy 2 phút, nên giai đoạn dồn tải chiếm tỉ trọng lớn hơn trong cửa sổ đo, và đuôi có thể đến
-từ chính lúc ramp. Muốn tách bạch phải xem `s3_stats_history.csv` (hiện **chưa tải về từ Kaggle**)
-để biết đuôi tập trung ở đầu hay rải đều.
+Đây mới là đặc trưng đúng của khoá bi quan: phần lớn request vẫn nhanh, nhưng những request xui xẻo
+xếp cuối hàng đợi phải chờ lâu hơn nhiều. **Và ảnh hưởng đó không lan sang người dùng chỉ đọc** —
+một tính chất tốt, đáng nêu khi cân nhắc thay đổi cơ chế khoá ở Pha 2.
 
 ### 4.6. Chưa thể kết luận về sức chứa
 
@@ -292,17 +344,18 @@ vượt 1 %.
 
 ### 4.7. Việc cần làm tiếp
 
-1. **Tải nốt CSV gốc từ Kaggle** về `benchmark/results/` — đặc biệt `s3_stats_history.csv`, vì nó
-   là thứ duy nhất tách bạch được hai cách giải thích ở mục 4.5.
-2. Chạy **S4** — tìm điểm bão hoà thật, phân biệt giữa giới hạn pool, threadpool và CPU. Đây là
+1. ~~Tải CSV gốc từ Kaggle~~ — **xong**. `benchmark/results/` đã có đủ 10 file của S2 và S3.
+2. **Thêm `--reset-stats`** cho Locust để percentile toàn cuộc không còn bị nhiễu bởi giai đoạn dồn
+   tải (mục 4.5). Phải áp dụng đồng thời cho BEFORE và AFTER.
+3. Chạy **S4** — tìm điểm bão hoà thật, phân biệt giữa giới hạn pool, threadpool và CPU. Đây là
    việc quan trọng nhất còn lại, vì mục 4.2 vẫn chưa chỉ đích danh được nút thắt.
-3. **Tách 201 và 409** trong bộ đo (xem ghi chú ở mục S3). Nếu sửa thì phải chạy lại cả S2 và S3.
-4. Bổ sung **sampler CPU/RSS** vào `run_baseline.py` trước khi đo lại.
-5. Chạy lặp **2–3 lần** mỗi kịch bản để biết độ dao động; Kaggle dùng CPU chia sẻ nên số liệu có
+4. **Tách 201 và 409** trong bộ đo (xem ghi chú ở mục S3). Nếu sửa thì phải chạy lại cả S2 và S3.
+5. Bổ sung **sampler CPU/RSS** vào `run_baseline.py` trước khi đo lại.
+6. Chạy lặp **2–3 lần** mỗi kịch bản để biết độ dao động; Kaggle dùng CPU chia sẻ nên số liệu có
    nhiễu. Chưa biết biên độ nhiễu thì chưa thể nói cải tiến ở Pha 2 là thật hay chỉ là dao động.
    Riêng chênh lệch −7,6 % thông lượng ở mục 4.4 **rất dễ nằm trong biên nhiễu** — cần lặp lại mới
    khẳng định được.
-6. Chạy **S1** (read-heavy) để hoàn thiện bộ baseline.
+7. Chạy **S1** (read-heavy) để hoàn thiện bộ baseline.
 
 ## 5. So sánh BEFORE / AFTER (Pha 2)
 
@@ -312,11 +365,12 @@ Bảng này sẽ được điền ở Pha 2, sau khi đã có cả số liệu b
 | Chỉ số | BEFORE (Pha 1) | AFTER (Pha 2) | Thay đổi |
 |---|---|---|---|
 | Throughput S2 (req/s) | 159,30 | | |
-| p95 S2 (ms) | 430 | | |
-| p99 S2 (ms) | 640 | | |
+| p95 S2 (ms) | 430 (toàn cuộc) / 420 (ổn định) | | |
+| p99 S2 (ms) | 640 (toàn cuộc) / **530 (ổn định)** | | |
 | Error rate S2 | 0,00 % | | |
 | Throughput S3 `POST /api/bookings` (req/s) | 11,43 | | |
 | p95 S3 `POST /api/bookings` (ms) | 630 | | |
+| p99 S3 tổng hợp, ổn định (ms) | 580 | | |
 | Tỉ lệ đặt vé / đọc ở S3 (p50) | 1,79× | | |
 | Bất biến tồn kho ở S3 | ✅ đúng | | |
 | Sức chứa (S4) | *(chưa đo)* | | |
