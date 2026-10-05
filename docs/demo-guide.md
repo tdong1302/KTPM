@@ -9,6 +9,13 @@ Yêu cầu: Python 3.11+ và `uv`. Không cần Docker/PostgreSQL.
 
 Từ thư mục repository:
 
+```cmd
+scripts\run-demo.cmd
+```
+
+Wrapper CMD gọi runner PowerShell hiện có và giữ nguyên exit code. Nếu đang dùng PowerShell trực
+tiếp, lệnh tương đương là:
+
 ```powershell
 .\scripts\run-demo.ps1
 ```

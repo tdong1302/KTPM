@@ -22,6 +22,7 @@ test-results.xml
 compose.log
 .uv-cache/
 .uv-task-cache/
+.pytest-tmp/
 artifacts/demo/
 
 # Raw benchmark output IS committed: the course report needs the evidence behind

@@ -70,10 +70,22 @@ In thẳng bảng tổng hợp ra màn hình cho dễ chép:
 
 ```python
 import pandas as pd
+
 df = pd.read_csv("benchmark/results/s2_stats.csv")
 pd.set_option("display.width", 200)
-print(df[["Name", "Request Count", "Failure Count", "Median Response Time",
-          "95%", "99%", "Requests/s"]].to_string(index=False))
+print(
+    df[
+        [
+            "Name",
+            "Request Count",
+            "Failure Count",
+            "Median Response Time",
+            "95%",
+            "99%",
+            "Requests/s",
+        ]
+    ].to_string(index=False)
+)
 ```
 
 Và thông tin phần cứng — **bắt buộc phải ghi lại** cùng số liệu:

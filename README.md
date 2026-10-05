@@ -153,6 +153,17 @@ uv run uvicorn app.main:app --reload
 Hoặc dùng `scripts/run-dev.ps1` / `scripts/run-dev.sh`. Để cập nhật dependency có chủ đích, sửa
 `pyproject.toml`, chạy `uv lock`, rồi xác nhận lại bằng `uv sync --frozen --all-extras`.
 
+Trên Windows Command Prompt (`cmd.exe`), dùng các wrapper ngắn gọn sau:
+
+```cmd
+scripts\setup-local.cmd
+scripts\run-dev.cmd
+scripts\run-demo.cmd
+scripts\run-tests.cmd --with-db
+```
+
+Hướng dẫn đầy đủ và cảnh báo database test: [docs/local-machine-setup.md](docs/local-machine-setup.md).
+
 Các quality command chuẩn:
 
 ```bash
@@ -172,6 +183,8 @@ auth/event/booking chính, dừng server và sinh báo cáo đã loại token/pa
 ```powershell
 .\scripts\run-demo.ps1
 ```
+
+Từ Windows Command Prompt, chạy `scripts\run-demo.cmd`.
 
 Kết quả nằm tại `artifacts/demo/latest-demo-report.md` và `.json`. Trên Bash/WSL:
 

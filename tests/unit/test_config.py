@@ -6,6 +6,13 @@ from pydantic import ValidationError
 from app.config import Settings
 
 
+@pytest.fixture(autouse=True)
+def isolate_settings_from_process_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep configuration tests deterministic under developer and CI environments."""
+    for field_name in Settings.model_fields:
+        monkeypatch.delenv(field_name.upper(), raising=False)
+
+
 def test_local_environment_allows_documented_development_defaults() -> None:
     settings = Settings(_env_file=None)
 
@@ -15,7 +22,7 @@ def test_local_environment_allows_documented_development_defaults() -> None:
 
 def test_production_rejects_the_development_jwt_secret() -> None:
     with pytest.raises(ValidationError, match="JWT_SECRET"):
-        Settings(environment="production", _env_file=None)
+        Settings(environment="production", jwt_secret="unsafe", _env_file=None)
 
 
 def test_production_accepts_a_private_jwt_secret() -> None:
