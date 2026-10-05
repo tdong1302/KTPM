@@ -104,8 +104,6 @@ def create_published_event(organizer: ApiActor, **overrides) -> dict:
     )
     assert created.status_code == 201, created.text
     event_id = created.json()["id"]
-    published = organizer.client.patch(
-        f"/api/events/{event_id}/publish", headers=organizer.headers
-    )
+    published = organizer.client.patch(f"/api/events/{event_id}/publish", headers=organizer.headers)
     assert published.status_code == 200, published.text
     return published.json()

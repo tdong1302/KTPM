@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 from app.application.ports import EventQuery, TokenClaims
-from app.domain.enums import BookingStatus, EventStatus, UserRole
+from app.domain.enums import BookingStatus, EventStatus
 from app.domain.errors import UnauthorizedError
 from app.domain.models import Booking, Event, User
 
@@ -126,6 +126,7 @@ class FakeBookingRepository:
     def __init__(self) -> None:
         self.rows: dict[int, Booking] = {}
         self._next_id = 1
+        self.lock_calls = 0
 
     def add(self, booking: Booking) -> Booking:
         stored = replace(booking, id=self._next_id)
@@ -136,6 +137,10 @@ class FakeBookingRepository:
     def get_by_id(self, booking_id: int) -> Booking | None:
         found = self.rows.get(booking_id)
         return replace(found) if found else None
+
+    def get_for_update(self, booking_id: int) -> Booking | None:
+        self.lock_calls += 1
+        return self.get_by_id(booking_id)
 
     def update(self, booking: Booking) -> Booking:
         self.rows[booking.id] = replace(booking)

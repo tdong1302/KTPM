@@ -19,7 +19,9 @@ from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 # auto_error=False: this scheme exists so Swagger renders an "Authorize" button and marks
 # protected operations with a padlock. It does NOT enforce anything - AuthenticationMiddleware
 # already did that before the route was reached.
-bearer_scheme = HTTPBearer(auto_error=False, description="Paste the access token from /api/auth/login")
+bearer_scheme = HTTPBearer(
+    auto_error=False, description="Paste the access token from /api/auth/login"
+)
 
 
 def get_unit_of_work(request: Request) -> SqlAlchemyUnitOfWork:
@@ -43,9 +45,7 @@ def get_booking_service(request: Request) -> BookingService:
     return BookingService(uow=get_unit_of_work(request), clock=request.app.state.clock)
 
 
-def current_principal(
-    request: Request, _credentials=Depends(bearer_scheme)
-) -> TokenClaims:
+def current_principal(request: Request, _credentials=Depends(bearer_scheme)) -> TokenClaims:
     """Read the principal that the middleware already established."""
     principal = getattr(request.state, "principal", None)
     if principal is None:

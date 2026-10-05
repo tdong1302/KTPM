@@ -154,6 +154,8 @@ Sự kiện luôn được tạo ở trạng thái `DRAFT` với `available_tick
 ### `PATCH /api/events/{id}/cancel` — 🔒 chủ sở hữu/ADMIN → `200`
 
 `DRAFT → CANCELLED` hoặc `PUBLISHED → CANCELLED`. `CANCELLED` và `COMPLETED` là trạng thái kết thúc.
+Baseline hiện chưa có endpoint hoặc background job chuyển một sự kiện sang `COMPLETED`; sự kiện đã
+qua `end_time` chỉ bị loại khỏi danh mục công khai và vẫn giữ status đã lưu.
 
 ### `DELETE /api/events/{id}` — 🔒 chủ sở hữu/ADMIN → `204`
 
@@ -194,7 +196,9 @@ Danh sách vé của chính người gọi, mới nhất trước. Nhận `page`
 
 ### `GET /api/bookings/{id}` → `200`
 
-**Lỗi:** `403` vé của người khác · `404` không tồn tại
+Chủ booking hoặc `ADMIN` có thể đọc. Không có endpoint để `ADMIN` liệt kê toàn bộ booking.
+
+**Lỗi:** `403` vé của người khác đối với caller không phải `ADMIN` · `404` không tồn tại
 
 ### `DELETE /api/bookings/{id}` → `200`
 
@@ -203,4 +207,8 @@ Huỷ vé và **hoàn lại tồn kho** cho sự kiện. Trả về booking đã
 
 Đây là huỷ theo nghiệp vụ, không xoá dòng dữ liệu — lịch sử đặt vé được giữ lại.
 
-**Lỗi:** `403` vé của người khác · `409` đã huỷ rồi, hoặc sự kiện đã bắt đầu · `404` không tồn tại
+Chủ booking hoặc `ADMIN` có thể huỷ. Booking được khoá lại trong cùng transaction trước khi hoàn vé
+để hai request đồng thời không thể hoàn tồn kho hai lần.
+
+**Lỗi:** `403` vé của người khác đối với caller không phải `ADMIN` · `409` đã huỷ rồi, hoặc sự kiện
+đã bắt đầu · `404` không tồn tại

@@ -7,7 +7,7 @@ It only runs against a real PostgreSQL database, because the guarantee comes fro
 ``SELECT ... FOR UPDATE`` row locking. SQLite serialises all writers anyway, so passing
 there would prove nothing. Set TEST_DATABASE_URL to enable it, for example:
 
-    TEST_DATABASE_URL=postgresql+psycopg://eventhub:eventhub@localhost:5432/eventhub_ktpm
+    TEST_DATABASE_URL=postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable
 
 Without that variable the test is SKIPPED, not silently passed.
 """
@@ -26,10 +26,14 @@ from app.domain.errors import DomainError
 from app.domain.models import Event, User
 from app.infrastructure.clock import SystemClock
 from app.infrastructure.db.base import Base, build_engine, build_session_factory
-from app.infrastructure.db.orm import BookingRecord, EventRecord, UserRecord
+from app.infrastructure.db.orm import BookingRecord, EventRecord
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
+REQUIRE_POSTGRES_TESTS = os.getenv("REQUIRE_POSTGRES_TESTS", "") == "1"
+
+if REQUIRE_POSTGRES_TESTS and not TEST_DATABASE_URL.startswith("postgresql"):
+    raise RuntimeError("REQUIRE_POSTGRES_TESTS=1 but TEST_DATABASE_URL is not a PostgreSQL URL")
 
 pytestmark = [
     pytest.mark.concurrency,
@@ -196,3 +200,28 @@ def test_concurrent_cancellations_restore_exactly_what_was_taken(session_factory
     assert cancelled == len(booking_ids)
     assert sold == 0
     assert available == total, "every released ticket must come back, exactly once"
+
+
+def test_same_booking_can_only_be_cancelled_once_concurrently(session_factory):
+    total = 20
+    event_id, buyer_ids = _seed(session_factory, total_tickets=total)
+    assert _run_concurrently(session_factory, event_id, buyer_ids[:2], quantity=1, workers=2) == 2
+
+    with session_factory() as session:
+        booking_id = session.query(BookingRecord.id).order_by(BookingRecord.id).first()[0]
+
+    def cancel_once(_: int) -> bool:
+        service = BookingService(SqlAlchemyUnitOfWork(session_factory), SystemClock())
+        try:
+            service.cancel(booking_id, 0, UserRole.ADMIN)
+            return True
+        except DomainError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        successes = sum(pool.map(cancel_once, range(20)))
+
+    available, sold = _read_state(session_factory, event_id)
+    assert successes == 1
+    assert sold == 1
+    assert available == total - sold

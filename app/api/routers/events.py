@@ -88,7 +88,10 @@ def get_event(event_id: int, service: EventServiceDep, principal: OptionalUser) 
     response_model=EventResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a draft event (requires authentication, ORGANIZER or ADMIN)",
-    responses={**UNAUTHORIZED, 403: {"model": ErrorResponse, "description": "Role cannot organize"}},
+    responses={
+        **UNAUTHORIZED,
+        403: {"model": ErrorResponse, "description": "Role cannot organize"},
+    },
 )
 def create_event(
     payload: CreateEventRequest, service: EventServiceDep, principal: CurrentUser
@@ -117,9 +120,7 @@ def create_event(
     summary="Publish a draft event (requires authentication, owner or ADMIN)",
     responses={**UNAUTHORIZED, **FORBIDDEN, **NOT_FOUND},
 )
-def publish_event(
-    event_id: int, service: EventServiceDep, principal: CurrentUser
-) -> EventResponse:
+def publish_event(event_id: int, service: EventServiceDep, principal: CurrentUser) -> EventResponse:
     return to_event_response(service.publish(event_id, principal.user_id, principal.role))
 
 
@@ -129,9 +130,7 @@ def publish_event(
     summary="Cancel an event (requires authentication, owner or ADMIN)",
     responses={**UNAUTHORIZED, **FORBIDDEN, **NOT_FOUND},
 )
-def cancel_event(
-    event_id: int, service: EventServiceDep, principal: CurrentUser
-) -> EventResponse:
+def cancel_event(event_id: int, service: EventServiceDep, principal: CurrentUser) -> EventResponse:
     return to_event_response(service.cancel(event_id, principal.user_id, principal.role))
 
 

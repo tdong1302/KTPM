@@ -2,16 +2,24 @@
 
 FROM python:3.11-slim AS base
 
+COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /uvx /bin/
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
+ENV PATH="/app/.venv/bin:$PATH"
+
 WORKDIR /app
 
 # Install dependencies first so that editing source code does not invalidate this layer.
-COPY pyproject.toml README.md ./
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --no-install-project
+
 COPY app ./app
-RUN pip install --upgrade pip && pip install .
+COPY alembic ./alembic
+COPY alembic.ini ./
+RUN uv sync --frozen --no-dev
 
 # Run as an unprivileged user.
 RUN useradd --create-home --uid 10001 appuser

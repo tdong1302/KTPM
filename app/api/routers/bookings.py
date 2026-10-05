@@ -10,7 +10,9 @@ from app.domain.models import Booking
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
 UNAUTHORIZED = {401: {"model": ErrorResponse, "description": "Missing or invalid token"}}
-CONFLICT = {409: {"model": ErrorResponse, "description": "Sold out, not bookable, or already cancelled"}}
+CONFLICT = {
+    409: {"model": ErrorResponse, "description": "Sold out, not bookable, or already cancelled"}
+}
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Booking or event not found"}}
 
 

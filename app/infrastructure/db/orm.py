@@ -9,6 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -31,6 +32,10 @@ class UserRecord(Base):
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("role IN ('USER', 'ORGANIZER', 'ADMIN')", name="ck_users_role"),
+    )
 
 
 class EventRecord(Base):
@@ -55,6 +60,17 @@ class EventRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
+        CheckConstraint("total_tickets > 0", name="ck_events_total_tickets_positive"),
+        CheckConstraint("available_tickets >= 0", name="ck_events_available_nonnegative"),
+        CheckConstraint(
+            "available_tickets <= total_tickets", name="ck_events_available_within_total"
+        ),
+        CheckConstraint("price >= 0", name="ck_events_price_nonnegative"),
+        CheckConstraint("start_time < end_time", name="ck_events_time_order"),
+        CheckConstraint(
+            "status IN ('DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED')",
+            name="ck_events_status",
+        ),
         # Serves the public catalogue query: status = PUBLISHED AND end_time > now
         # ordered by start_time.
         Index("ix_events_status_start_time", "status", "start_time"),
@@ -83,6 +99,9 @@ class BookingRecord(Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
+        CheckConstraint("quantity > 0 AND quantity <= 10", name="ck_bookings_quantity"),
+        CheckConstraint("unit_price >= 0", name="ck_bookings_unit_price_nonnegative"),
+        CheckConstraint("status IN ('CONFIRMED', 'CANCELLED')", name="ck_bookings_status"),
         Index("ix_bookings_user_id_created_at", "user_id", "created_at"),
         Index("ix_bookings_event_id_status", "event_id", "status"),
     )

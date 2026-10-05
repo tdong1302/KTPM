@@ -58,9 +58,7 @@ def _imported_roots(tree: ast.AST) -> set[str]:
 @pytest.mark.parametrize("module_path", _modules(), ids=lambda p: str(p.name))
 def test_pure_layer_has_no_framework_or_db_imports(module_path: Path) -> None:
     tree = ast.parse(module_path.read_text(encoding="utf-8"))
-    offenders = {
-        name for name in _imported_roots(tree) if name.split(".")[0] in FORBIDDEN_ROOTS
-    }
+    offenders = {name for name in _imported_roots(tree) if name.split(".")[0] in FORBIDDEN_ROOTS}
     relative = module_path.relative_to(PROJECT_ROOT).as_posix()
     assert not offenders, (
         f"{relative} imports {sorted(offenders)}; the business layer must depend on "

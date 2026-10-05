@@ -8,8 +8,9 @@ kiểm chứng tự động bằng test quét AST.
 
 Ba vai trò: **User** đăng ký/đăng nhập JWT, tra cứu sự kiện đã phát hành (tìm kiếm, lọc, phân
 trang), đặt/xem/huỷ vé của mình. **Organizer** tạo, phát hành, huỷ sự kiện, xoá sự kiện nháp.
-**Admin** quản lý toàn bộ sự kiện và vé của mọi user. Sự kiện có vòng đời
-`DRAFT → PUBLISHED → CANCELLED/COMPLETED`.
+**Admin** quản lý toàn bộ sự kiện và có thể đọc/huỷ booking bất kỳ khi biết ID; baseline chưa có
+API liệt kê booking của mọi user. Domain khai báo vòng đời
+`DRAFT → PUBLISHED → CANCELLED/COMPLETED`, nhưng hiện chưa có use case chuyển sang `COMPLETED`.
 
 Bất biến quan trọng nhất là số vé còn lại (`available_tickets`): trừ khi đặt vé, hoàn khi huỷ vé.
 Thao tác đặt/huỷ khoá dòng sự kiện bằng `SELECT ... FOR UPDATE` trong cùng transaction, đảm bảo

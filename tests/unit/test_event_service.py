@@ -95,6 +95,13 @@ class TestTransitions:
         published = service.publish(event.id, ORGANIZER_ID, UserRole.ORGANIZER)
         assert published.status == EventStatus.PUBLISHED
 
+    def test_transition_locks_the_event_row(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        service.publish(event.id, ORGANIZER_ID, UserRole.ORGANIZER)
+
+        assert uow.events.lock_calls == 1
+
     def test_publishing_twice_conflicts(self, service, uow):
         event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
         service.publish(event.id, ORGANIZER_ID, UserRole.ORGANIZER)
@@ -132,6 +139,13 @@ class TestDelete:
         event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
         service.delete(event.id, ORGANIZER_ID, UserRole.ORGANIZER)
         assert uow.events.get_by_id(event.id) is None
+
+    def test_delete_locks_the_event_row(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        service.delete(event.id, ORGANIZER_ID, UserRole.ORGANIZER)
+
+        assert uow.events.lock_calls == 1
 
     def test_published_event_cannot_be_deleted(self, service, uow):
         event = make_event(uow, ORGANIZER_ID, status=EventStatus.PUBLISHED)

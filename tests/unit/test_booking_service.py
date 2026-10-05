@@ -78,6 +78,11 @@ class TestBook:
         with pytest.raises(ConflictError):
             service.book(BUYER_ID, event.id, quantity=1)
 
+    def test_completed_event_is_not_bookable(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.COMPLETED)
+        with pytest.raises(ConflictError):
+            service.book(BUYER_ID, event.id, quantity=1)
+
     def test_started_event_is_not_bookable(self, service, uow, clock):
         past = clock.now() - timedelta(hours=1)
         event = make_event(uow, ORGANIZER_ID, start_time=past)
@@ -113,6 +118,14 @@ class TestCancel:
         assert cancelled.status == BookingStatus.CANCELLED
         assert cancelled.cancelled_at is not None
         assert uow.events.get_by_id(event.id).available_tickets == 10
+
+    def test_cancelling_locks_and_rechecks_the_booking(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, total_tickets=10)
+        booking = service.book(BUYER_ID, event.id, quantity=1)
+
+        service.cancel(booking.id, BUYER_ID, UserRole.USER)
+
+        assert uow.bookings.lock_calls == 1
 
     def test_cancelling_twice_conflicts(self, service, uow):
         event = make_event(uow, ORGANIZER_ID, total_tickets=10)

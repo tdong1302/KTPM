@@ -36,9 +36,10 @@ mặc định (~40 thread). Đây là lựa chọn có chủ ý, không phải t
 **Cách xác nhận:** trong S4, nếu throughput đi ngang trong khi CPU chưa tới hạn và độ trễ database
 vẫn thấp, giả thuyết được củng cố.
 
-**Cải tiến:** `asyncpg` + `AsyncSession` + endpoint `async def`. Lưu ý: việc này chỉ thay adapter ở
-`app/infrastructure`; tầng nghiệp vụ về nguyên tắc không phải đổi — bản thân điều đó cũng là một
-kết quả đáng báo cáo về giá trị của kiến trúc ports & adapters.
+**Cải tiến có thể khảo sát sau:** `asyncpg` + `AsyncSession` + endpoint `async def`. Các port và
+service hiện là đồng bộ, nên true async sẽ cần thay đổi signature/transaction orchestration xuyên
+qua application boundary, không chỉ thay adapter. Chỉ thực hiện sau khi số đo chứng minh threadpool
+là nút thắt.
 
 ### B. Độ trễ đọc — cache danh mục sự kiện
 

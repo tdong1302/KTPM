@@ -13,9 +13,7 @@ from tests.conftest import (
 
 class TestEventLifecycleOverHttp:
     def test_organizer_creates_publishes_and_sees_the_event_listed(self, client, organizer):
-        created = client.post(
-            "/api/events", json=event_payload(), headers=organizer.headers
-        )
+        created = client.post("/api/events", json=event_payload(), headers=organizer.headers)
         assert created.status_code == 201
         body = created.json()
         assert body["status"] == "DRAFT"
@@ -25,9 +23,7 @@ class TestEventLifecycleOverHttp:
         # A draft is not in the public catalogue.
         assert client.get("/api/events").json()["total"] == 0
 
-        published = client.patch(
-            f"/api/events/{body['id']}/publish", headers=organizer.headers
-        )
+        published = client.patch(f"/api/events/{body['id']}/publish", headers=organizer.headers)
         assert published.status_code == 200
         assert published.json()["status"] == "PUBLISHED"
 
@@ -56,15 +52,15 @@ class TestEventLifecycleOverHttp:
 
         assert client.get(f"/api/events/{event_id}").status_code == 404
         assert client.get(f"/api/events/{event_id}", headers=buyer.headers).status_code == 404
-        assert (
-            client.get(f"/api/events/{event_id}", headers=organizer.headers).status_code == 200
-        )
+        assert client.get(f"/api/events/{event_id}", headers=organizer.headers).status_code == 200
 
     def test_delete_removes_a_draft(self, client, organizer):
         created = client.post("/api/events", json=event_payload(), headers=organizer.headers)
         event_id = created.json()["id"]
 
-        assert client.delete(f"/api/events/{event_id}", headers=organizer.headers).status_code == 204
+        assert (
+            client.delete(f"/api/events/{event_id}", headers=organizer.headers).status_code == 204
+        )
         assert client.get(f"/api/events/{event_id}", headers=organizer.headers).status_code == 404
 
     def test_published_event_cannot_be_deleted(self, client, organizer):
@@ -115,9 +111,9 @@ class TestCatalogue:
         create_published_event(organizer, title="Cheap", price="10.00")
         create_published_event(organizer, title="Pricey", price="900.00")
 
-        items = client.get(
-            "/api/events", params={"sort_by": "price", "sort_dir": "desc"}
-        ).json()["items"]
+        items = client.get("/api/events", params={"sort_by": "price", "sort_dir": "desc"}).json()[
+            "items"
+        ]
 
         assert [i["title"] for i in items] == ["Pricey", "Cheap"]
 
@@ -209,7 +205,9 @@ class TestBookingFlowOverHttp:
         ).json()["id"]
         intruder = register_and_login(client, "intruder@example.com")
 
-        assert client.get(f"/api/bookings/{booking_id}", headers=intruder.headers).status_code == 403
+        assert (
+            client.get(f"/api/bookings/{booking_id}", headers=intruder.headers).status_code == 403
+        )
         assert (
             client.delete(f"/api/bookings/{booking_id}", headers=intruder.headers).status_code
             == 403
@@ -223,8 +221,12 @@ class TestBookingFlowOverHttp:
             headers=buyer.headers,
         ).json()["id"]
 
-        assert client.delete(f"/api/bookings/{booking_id}", headers=buyer.headers).status_code == 200
-        assert client.delete(f"/api/bookings/{booking_id}", headers=buyer.headers).status_code == 409
+        assert (
+            client.delete(f"/api/bookings/{booking_id}", headers=buyer.headers).status_code == 200
+        )
+        assert (
+            client.delete(f"/api/bookings/{booking_id}", headers=buyer.headers).status_code == 409
+        )
 
     def test_quantity_above_the_per_booking_cap_is_rejected(self, client, organizer, buyer):
         event = create_published_event(organizer, total_tickets=100)
@@ -240,9 +242,7 @@ class TestOpenApiContract:
     def test_swagger_document_exposes_every_endpoint(self, client):
         spec = client.get("/openapi.json").json()
         operations = {
-            (method.upper(), path)
-            for path, ops in spec["paths"].items()
-            for method in ops
+            (method.upper(), path) for path, ops in spec["paths"].items() for method in ops
         }
 
         assert ("POST", "/api/auth/login") in operations

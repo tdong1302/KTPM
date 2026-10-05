@@ -1,40 +1,69 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: eventhub-ktpm-db
     environment:
-      POSTGRES_USER: eventhub
-      POSTGRES_PASSWORD: eventhub
-      POSTGRES_DB: eventhub_ktpm
+      POSTGRES_USER: ${POSTGRES_USER:-eventhub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eventhub-local-only}
+      POSTGRES_DB: ${POSTGRES_DB:-eventhub_ktpm}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U eventhub -d eventhub_ktpm"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  api:
+  migrate:
     build: .
-    container_name: eventhub-ktpm-api
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg://eventhub:eventhub@postgres:5432/eventhub_ktpm
-      # The baseline creates its schema at startup. Swap to Alembic when the schema
-      # starts evolving in Phase 2.
-      DB_AUTO_CREATE: "true"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventhub}:${POSTGRES_PASSWORD:-eventhub-local-only}@postgres:5432/${POSTGRES_DB:-eventhub_ktpm}
+      DB_AUTO_CREATE: "false"
       DB_POOL_SIZE: "5"
       DB_MAX_OVERFLOW: "10"
-      JWT_SECRET: local-development-secret-change-me
+      JWT_SECRET: ${JWT_SECRET:-docker-local-secret-not-for-production-use}
+      JWT_EXPIRES_MINUTES: "1440"
+      BCRYPT_ROUNDS: "12"
+      ENVIRONMENT: docker
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+
+  api:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventhub}:${POSTGRES_PASSWORD:-eventhub-local-only}@postgres:5432/${POSTGRES_DB:-eventhub_ktpm}
+      DB_AUTO_CREATE: "false"
+      DB_POOL_SIZE: "5"
+      DB_MAX_OVERFLOW: "10"
+      JWT_SECRET: ${JWT_SECRET:-docker-local-secret-not-for-production-use}
       JWT_EXPIRES_MINUTES: "1440"
       BCRYPT_ROUNDS: "12"
       ENVIRONMENT: docker
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
+
+  postgres-test:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: eventhub_test
+      POSTGRES_PASSWORD: eventhub_test
+      POSTGRES_DB: eventhub_test_disposable
+    ports:
+      - "${POSTGRES_TEST_PORT:-5433}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventhub_test -d eventhub_test_disposable"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
 
 volumes:
   postgres-data:
