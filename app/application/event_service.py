@@ -106,7 +106,7 @@ class EventService:
 
     def delete(self, event_id: int, actor_id: int, actor_role: UserRole) -> None:
         with self._uow as uow:
-            event = self._require_event(uow, event_id)
+            event = self._require_event_for_update(uow, event_id)
             self._require_owner_or_admin(event, actor_id, actor_role)
             event.ensure_deletable()
             if uow.bookings.count_active_for_event(event_id) > 0:
@@ -118,7 +118,7 @@ class EventService:
         self, event_id: int, actor_id: int, actor_role: UserRole, target: EventStatus
     ) -> Event:
         with self._uow as uow:
-            event = self._require_event(uow, event_id)
+            event = self._require_event_for_update(uow, event_id)
             self._require_owner_or_admin(event, actor_id, actor_role)
             event.transition_to(target, self._clock.now())
             updated = uow.events.update(event)
@@ -128,6 +128,13 @@ class EventService:
     @staticmethod
     def _require_event(uow: UnitOfWork, event_id: int) -> Event:
         event = uow.events.get_by_id(event_id)
+        if event is None:
+            raise NotFoundError("event not found")
+        return event
+
+    @staticmethod
+    def _require_event_for_update(uow: UnitOfWork, event_id: int) -> Event:
+        event = uow.events.get_for_update(event_id)
         if event is None:
             raise NotFoundError("event not found")
         return event

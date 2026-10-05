@@ -140,6 +140,13 @@ class SqlAlchemyBookingRepository:
         record = self._session.get(BookingRecord, booking_id)
         return mappers.booking_to_domain(record) if record else None
 
+    def get_for_update(self, booking_id: int) -> Booking | None:
+        stmt = select(BookingRecord).where(BookingRecord.id == booking_id)
+        if _supports_row_locks(self._session):
+            stmt = stmt.with_for_update()
+        record = self._session.scalar(stmt)
+        return mappers.booking_to_domain(record) if record else None
+
     def update(self, booking: Booking) -> Booking:
         record = self._session.get(BookingRecord, booking.id)
         if record is None:

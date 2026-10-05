@@ -95,7 +95,8 @@ def seed(event_count: int, reset: bool) -> None:
             )
         uow.commit()
 
-    print(f"seeded {event_count} published events into {settings.database_url}")
+    safe_database_url = engine.url.render_as_string(hide_password=True)
+    print(f"seeded {event_count} published events into {safe_database_url}")
     engine.dispose()
 
 

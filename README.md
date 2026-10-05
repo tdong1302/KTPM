@@ -3,6 +3,9 @@
 Dịch vụ backend REST API cho nghiệp vụ **đặt vé sự kiện**, xây dựng làm **baseline (Pha 1)** cho
 môn Kiến trúc/Kỹ thuật phần mềm.
 
+> **Trạng thái giao diện:** dự án hiện là **REST API-only**. Swagger UI tại `/docs` là giao diện
+> khám phá API, không phải frontend dành cho người dùng cuối.
+
 > Mô tả hệ thống ngắn gọn: [docs/mo-ta-he-thong.md](docs/mo-ta-he-thong.md)
 
 ---
@@ -29,7 +32,8 @@ môn Kiến trúc/Kỹ thuật phần mềm.
 ### Chức năng của hệ thống
 
 - Đăng ký, đăng nhập (JWT), xem tài khoản hiện tại.
-- Tạo / phát hành / huỷ / xoá sự kiện, theo vòng đời `DRAFT → PUBLISHED → CANCELLED|COMPLETED`.
+- Tạo / phát hành / huỷ / xoá sự kiện. Domain có trạng thái `COMPLETED`, nhưng baseline hiện chưa
+  có endpoint hoặc background job chuyển sự kiện sang trạng thái này.
 - Tra cứu sự kiện công khai: tìm kiếm, lọc, phân trang, sắp xếp.
 - Đặt vé (trừ tồn kho có khoá dòng), xem vé của mình, huỷ vé (hoàn tồn kho).
 
@@ -178,10 +182,12 @@ Chi tiết: [docs/testing.md](docs/testing.md).
 
 ## 10. Benchmark
 
-Đã đo kịch bản **S2** trên Kaggle CPU (Xeon @2.20GHz, 4 vCPU): **47 612 request, 0 lỗi,
+Đã đo các kịch bản **S2 và S3** trên Kaggle CPU (Xeon @2.20GHz, 4 vCPU). S2 ghi nhận
+**47 612 request, 0 lỗi,
 159,30 req/s, p50 240 ms, p95 430 ms**. Số liệu đầy đủ và phần phân tích ở
 [docs/benchmark.md](docs/benchmark.md); dữ liệu thô ở [benchmark/results/](benchmark/results/).
-S1, S3, S4 chưa chạy.
+S1 và S4 chưa chạy. Các giới hạn về provenance và khả năng lặp lại được ghi trong
+[`docs/stabilization-report.md`](docs/stabilization-report.md).
 
 ```bash
 python benchmark/seed_data.py --reset --events 500
@@ -198,10 +204,11 @@ Bảng ghi kết quả: [docs/benchmark.md](docs/benchmark.md).
 
 ## 11. Trạng thái hiện tại
 
-Pha 1 (baseline) đã hoàn chỉnh và được verify bằng chạy thật: kiến trúc phân tầng với ràng buộc
-business layer không import framework/DB kiểm chứng tự động bằng AST, 14 endpoint REST (đủ
-GET/POST/DELETE, có route yêu cầu xác thực qua middleware), Swagger, đóng gói Docker, 142 test pass
-trên PostgreSQL (bao gồm test chống bán vượt vé). Đã đẩy lên GitHub public và chạy load test thật
+Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
+tự động bằng AST, 14 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
+Swagger và đóng gói Docker. Lần stabilization gần nhất thu được **158 test collected: 153 pass,
+5 PostgreSQL concurrency test skip** khi máy kiểm tra không có PostgreSQL. Git history ghi nhận một
+lần chạy cũ trên PostgreSQL, nhưng không có raw test log kèm theo để tái lập. Đã chạy load test thật
 trên Kaggle CPU cho hai kịch bản S2 (baseline throughput) và S3 (tranh chấp ghi) — số liệu và phân
 tích ở [docs/benchmark.md](docs/benchmark.md).
 

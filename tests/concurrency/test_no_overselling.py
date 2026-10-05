@@ -196,3 +196,30 @@ def test_concurrent_cancellations_restore_exactly_what_was_taken(session_factory
     assert cancelled == len(booking_ids)
     assert sold == 0
     assert available == total, "every released ticket must come back, exactly once"
+
+
+def test_same_booking_can_only_be_cancelled_once_concurrently(session_factory):
+    total = 20
+    event_id, buyer_ids = _seed(session_factory, total_tickets=total)
+    assert _run_concurrently(
+        session_factory, event_id, buyer_ids[:2], quantity=1, workers=2
+    ) == 2
+
+    with session_factory() as session:
+        booking_id = session.query(BookingRecord.id).order_by(BookingRecord.id).first()[0]
+
+    def cancel_once(_: int) -> bool:
+        service = BookingService(SqlAlchemyUnitOfWork(session_factory), SystemClock())
+        try:
+            service.cancel(booking_id, 0, UserRole.ADMIN)
+            return True
+        except DomainError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        successes = sum(pool.map(cancel_once, range(20)))
+
+    available, sold = _read_state(session_factory, event_id)
+    assert successes == 1
+    assert sold == 1
+    assert available == total - sold

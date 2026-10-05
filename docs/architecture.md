@@ -98,8 +98,9 @@ quyết định cơ chế (`SELECT ... FOR UPDATE` trên PostgreSQL, bỏ qua tr
 tuần tự hoá mọi writer).
 
 **Quy tắc nghiệp vụ nằm trên aggregate.** `Event.reserve()`, `Event.transition_to()`,
-`Booking.cancel()` chứa invariant. Service điều phối và quản lý transaction; nó không phải nơi duy
-nhất giữ quy tắc, nên không thể vô hiệu hoá quy tắc bằng cách gọi thẳng repository.
+`Booking.cancel()` chứa invariant. Service điều phối và quản lý transaction. Database còn có check
+constraint cho các giới hạn dữ liệu cốt lõi; code ngoài application service vẫn không được coi là
+đường ghi hợp lệ chỉ vì nó có thể gọi thẳng repository.
 
 ### Ràng buộc được kiểm chứng tự động
 

@@ -65,6 +65,8 @@ class BookingService:
     def cancel(self, booking_id: int, actor_id: int, actor_role: UserRole) -> Booking:
         now = self._clock.now()
         with self._uow as uow:
+            # Read once to discover the event and reject unauthorized callers before
+            # taking a write lock on shared inventory.
             booking = uow.bookings.get_by_id(booking_id)
             if booking is None:
                 raise NotFoundError("booking not found")
@@ -77,6 +79,13 @@ class BookingService:
             if event is not None and event.start_time <= now:
                 raise ConflictError("event has already started; booking can no longer be cancelled")
 
+            # Another request may have cancelled this booking while we waited for the
+            # event lock. Re-read it under a row lock so inventory is released once.
+            booking = uow.bookings.get_for_update(booking_id)
+            if booking is None:
+                raise NotFoundError("booking not found")
+            if not booking.is_owned_by(actor_id, actor_role):
+                raise ForbiddenError("this booking belongs to another user")
             booking.cancel(now)
             if event is not None:
                 event.release(booking.quantity, now)

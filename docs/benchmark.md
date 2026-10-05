@@ -21,17 +21,17 @@ do [`benchmark/kaggle/run_baseline.py`](../benchmark/kaggle/run_baseline.py) t�
 | RAM | 31 GiB (lúc chạy dùng ~898 MiB) |
 | OS | Linux 6.12.90 x86_64, glibc 2.35 |
 | Python | 3.12.13 |
-| PostgreSQL | 16 (cài qua `apt-get` trong notebook) |
+| PostgreSQL | Cài từ package `postgresql` của Kaggle/apt; artifact cũ không ghi version thực tế |
 | App server | `uvicorn --workers 1` |
 | `BCRYPT_ROUNDS` | 12 |
 | `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | 5 / 10 (tối đa 15 kết nối) |
 | Git commit | `73ca1ceca7d3…` (xem ghi chú bên dưới) |
 | Ngày chạy | 2026-09-20 11:41 UTC |
 
-> **Về commit hash:** hash ghi trong các file `*-environment.txt` là hash tại thời điểm chạy
-> benchmark. Lịch sử git sau đó được viết lại (chỉ sửa commit message, **không** đổi một byte nào
-> trong cây mã nguồn), nên hash hiện tại của commit đó đã khác. Các file bằng chứng thô cố ý
-> không được sửa.
+> **Về commit hash:** hash `73ca1ceca7d3…` ghi trong các file `*-environment.txt` không còn tồn tại
+> trong Git history hiện tại. Tài liệu cũ cho biết lịch sử đã được viết lại, nhưng không còn object
+> để kiểm chứng tree tương ứng. Vì vậy S2/S3 là bằng chứng số đo lịch sử, chưa phải baseline có thể
+> checkout và tái lập byte-for-byte.
 
 ## 2. Cách chạy
 
@@ -226,8 +226,9 @@ mật**, không phải tối ưu hiệu năng. Nếu có thay đổi thì phải
 ### 4.4. Cái giá của khoá chống bán vượt vé (S2 so với S3)
 
 Ở S2, `POST /api/bookings` có p50 300 ms, chỉ chậm hơn đọc (230 ms) khoảng 30 %, dù nó phải mở
-transaction và giữ khoá `SELECT ... FOR UPDATE`. Lý do: 500 sự kiện đã seed, Locust chọn ngẫu nhiên,
-nên hầu như không có hai request nào tranh cùng một dòng. **S2 không đo được cái giá của khoá.**
+transaction và giữ khoá `SELECT ... FOR UPDATE`. Database có 500 sự kiện, nhưng mỗi virtual user
+chỉ nạp trang đầu với `size=100`, nên booking phân tán trên tối đa 100 dòng. Mức tranh chấp vẫn thấp
+hơn nhiều so với S3, nhưng không được mô tả là phân tán đều trên cả 500 sự kiện.
 
 S3 dồn toàn bộ người mua vào **một sự kiện duy nhất**, nên mọi request đặt vé đều xếp hàng trên cùng
 một dòng.

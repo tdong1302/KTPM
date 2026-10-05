@@ -93,8 +93,14 @@ ra. Phép thử đối chứng này chạy ngoài repo (monkeypatch trong một 
 
 ## Những gì hiện CHƯA có
 
-- Chưa chạy load test thật để lấy số liệu (hạ tầng đã sẵn sàng, xem [benchmark.md](benchmark.md)).
+- Đã có một lần chạy S2 và một lần chạy S3; S1/S4 và các lần chạy lặp chưa có. Xem
+  [benchmark.md](benchmark.md) và [stabilization-report.md](stabilization-report.md).
 - Chưa có kiểm thử trên PostgreSQL cho các luồng API thông thường (integration test dùng SQLite).
-  Sự khác biệt phương ngữ SQL hiện được giới hạn ở đúng một chỗ: `get_for_update`.
+  Những phần bắt buộc kiểm tra riêng trên PostgreSQL gồm `SELECT ... FOR UPDATE` và Alembic DDL
+  thêm check constraint; SQLite integration dùng `create_all()` nên không thay thế được hai kiểm tra này.
 - Chưa có CI. Khi thêm, pipeline nên chạy `pytest` kèm một service PostgreSQL để các test
   concurrency thực sự chạy chứ không bị skip.
+
+> **Cảnh báo:** fixture concurrency gọi `drop_all()` trước và sau suite. Chỉ đặt
+> `TEST_DATABASE_URL` tới database PostgreSQL dùng riêng cho test, không trỏ tới database local có
+> dữ liệu cần giữ.

@@ -97,6 +97,9 @@ class BookingRepository(Protocol):
 
     def get_by_id(self, booking_id: int) -> Booking | None: ...
 
+    def get_for_update(self, booking_id: int) -> Booking | None:
+        """Read a booking under a row lock until the transaction ends."""
+
     def update(self, booking: Booking) -> Booking: ...
 
     def list_by_user(
