@@ -5,14 +5,11 @@ from functools import lru_cache
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 DEFAULT_JWT_SECRET = "change-me-in-production-this-is-a-local-only-secret"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "EventHub-KTPM"
     environment: str = "local"
@@ -36,7 +33,9 @@ class Settings(BaseSettings):
     def reject_insecure_production_secret(self) -> "Settings":
         if self.environment.strip().lower() in {"prod", "production"}:
             if self.jwt_secret == DEFAULT_JWT_SECRET or len(self.jwt_secret) < 32:
-                raise ValueError("JWT_SECRET must be replaced with at least 32 characters in production")
+                raise ValueError(
+                    "JWT_SECRET must be replaced with at least 32 characters in production"
+                )
         return self
 
     @property

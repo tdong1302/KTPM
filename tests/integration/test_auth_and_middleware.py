@@ -56,7 +56,7 @@ class TestMiddlewareGuards:
 
         forged = jwt.encode(
             {"sub": "1", "email": "attacker@example.com", "role": "ADMIN", "exp": 9999999999},
-            "some-other-secret",
+            "some-other-test-secret-that-is-at-least-32-bytes",
             algorithm="HS256",
         )
         response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {forged}"})

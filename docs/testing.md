@@ -3,11 +3,11 @@
 ## Cách chạy
 
 ```bash
-pytest                      # toàn bộ
-pytest tests/unit           # unit + kiến trúc (rất nhanh, không cần hạ tầng)
-pytest tests/integration    # API thật qua TestClient + SQLite
-pytest --cov=app            # kèm coverage
-pytest -m concurrency       # chỉ test chống bán vượt vé (cần PostgreSQL)
+uv run --frozen --extra dev pytest                      # toàn bộ
+uv run --frozen --extra dev pytest tests/unit           # unit + kiến trúc
+uv run --frozen --extra dev pytest tests/integration    # API + SQLite
+uv run --frozen --extra dev pytest --cov=app            # kèm coverage
+uv run --frozen --extra dev pytest -m concurrency       # cần PostgreSQL
 ```
 
 Script tiện dụng: `scripts/run-tests.ps1` (Windows) hoặc `scripts/run-tests.sh` (Linux/macOS).
@@ -64,18 +64,18 @@ sẽ "pass" mà không chứng minh được gì. Skip trung thực hơn là pas
 Bật lên:
 
 ```bash
-docker compose up -d postgres
+docker compose --profile test up -d postgres-test
 
 # Windows PowerShell
-$env:TEST_DATABASE_URL="postgresql+psycopg://eventhub:eventhub@localhost:5432/eventhub_ktpm"
+$env:TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
 # Linux/macOS
-export TEST_DATABASE_URL="postgresql+psycopg://eventhub:eventhub@localhost:5432/eventhub_ktpm"
+export TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
 
-pytest tests/concurrency -v
+uv run --frozen --extra dev pytest tests/concurrency -v
 ```
 
-Bốn kịch bản: 20 người tranh 1 vé cuối; 40 người tranh 10 vé; đặt theo lô 3 vé trên 10 vé; và huỷ
-vé đồng thời phải hoàn lại đúng số vé đã giữ.
+Năm kịch bản: 20 người tranh 1 vé cuối; 40 người tranh 10 vé; đặt theo lô 3 vé trên 10 vé; huỷ nhiều
+booking đồng thời; và 20 request cùng huỷ một booking nhưng chỉ được hoàn tồn kho đúng một lần.
 
 #### Kiểm chứng rằng test này thực sự nhạy
 
@@ -98,8 +98,9 @@ ra. Phép thử đối chứng này chạy ngoài repo (monkeypatch trong một 
 - Chưa có kiểm thử trên PostgreSQL cho các luồng API thông thường (integration test dùng SQLite).
   Những phần bắt buộc kiểm tra riêng trên PostgreSQL gồm `SELECT ... FOR UPDATE` và Alembic DDL
   thêm check constraint; SQLite integration dùng `create_all()` nên không thay thế được hai kiểm tra này.
-- Chưa có CI. Khi thêm, pipeline nên chạy `pytest` kèm một service PostgreSQL để các test
-  concurrency thực sự chạy chứ không bị skip.
+- GitHub Actions đã được cấu hình dùng PostgreSQL disposable, migration thật, constraint check,
+  concurrency suite bắt buộc, coverage 95%, Ruff và container smoke. Workflow chưa được thực thi
+  cho tới khi branch được push; xem [infrastructure-readiness-report.md](infrastructure-readiness-report.md).
 
 > **Cảnh báo:** fixture concurrency gọi `drop_all()` trước và sau suite. Chỉ đặt
 > `TEST_DATABASE_URL` tới database PostgreSQL dùng riêng cho test, không trỏ tới database local có

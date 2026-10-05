@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 from app.application.ports import EventQuery, TokenClaims
-from app.domain.enums import BookingStatus, EventStatus, UserRole
+from app.domain.enums import BookingStatus, EventStatus
 from app.domain.errors import UnauthorizedError
 from app.domain.models import Booking, Event, User
 

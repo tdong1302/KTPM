@@ -14,9 +14,15 @@ env/
 *.sqlite3
 
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 coverage.xml
+test-results.xml
+compose.log
+.uv-cache/
+.uv-task-cache/
+artifacts/demo/
 
 # Raw benchmark output IS committed: the course report needs the evidence behind
 # every number in docs/benchmark.md.

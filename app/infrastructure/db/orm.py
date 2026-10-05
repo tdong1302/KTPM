@@ -101,9 +101,7 @@ class BookingRecord(Base):
     __table_args__ = (
         CheckConstraint("quantity > 0 AND quantity <= 10", name="ck_bookings_quantity"),
         CheckConstraint("unit_price >= 0", name="ck_bookings_unit_price_nonnegative"),
-        CheckConstraint(
-            "status IN ('CONFIRMED', 'CANCELLED')", name="ck_bookings_status"
-        ),
+        CheckConstraint("status IN ('CONFIRMED', 'CANCELLED')", name="ck_bookings_status"),
         Index("ix_bookings_user_id_created_at", "user_id", "created_at"),
         Index("ix_bookings_event_id_status", "event_id", "status"),
     )

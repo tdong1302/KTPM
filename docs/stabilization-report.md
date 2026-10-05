@@ -1,5 +1,9 @@
 # Stabilization report
 
+> **Historical snapshot:** báo cáo này ghi kết quả của stabilization pass tại commit `5d6cb70`.
+> Sau infrastructure pass, trạng thái hiện tại là 164 collected / 159 passed / 5 PostgreSQL-only
+> skipped; xem [infrastructure-readiness-report.md](infrastructure-readiness-report.md).
+
 Ngày kiểm tra: **2026-10-05**. Báo cáo này ghi lại đợt ổn định chức năng trước Pha 2. Không có
 thay đổi async, cache, Redis, microservice, CQRS, locking strategy hay benchmark workload.
 

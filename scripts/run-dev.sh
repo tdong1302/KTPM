@@ -8,6 +8,6 @@ until docker compose exec -T postgres pg_isready -U eventhub -d eventhub_ktpm >/
   sleep 1
 done
 
-export DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://eventhub:eventhub@localhost:5432/eventhub_ktpm}"
-alembic upgrade head
-exec uvicorn app.main:app --reload --port 8000
+export DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://eventhub:eventhub-local-only@localhost:5432/eventhub_ktpm}"
+uv run --frozen python -m alembic upgrade head
+exec uv run --frozen python -m uvicorn app.main:app --reload --port 8000

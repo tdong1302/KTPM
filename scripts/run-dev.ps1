@@ -9,7 +9,7 @@ do {
 } until ($LASTEXITCODE -eq 0)
 
 if (-not $env:DATABASE_URL) {
-    $env:DATABASE_URL = "postgresql+psycopg://eventhub:eventhub@localhost:5432/eventhub_ktpm"
+    $env:DATABASE_URL = "postgresql+psycopg://eventhub:eventhub-local-only@localhost:5432/eventhub_ktpm"
 }
-python -m alembic upgrade head
-python -m uvicorn app.main:app --reload --port 8000
+uv run --frozen python -m alembic upgrade head
+uv run --frozen python -m uvicorn app.main:app --reload --port 8000

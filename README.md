@@ -121,28 +121,67 @@ Tồn kho vé dùng một biến đếm `events.available_tickets`. Thao tác đ
 `SELECT ... FOR UPDATE` trong cùng một transaction, nên **không thể bán vượt số vé** khi nhiều
 người đặt đồng thời.
 
-## 7. Chạy local
+## 7. Development environment
 
-Yêu cầu: Python 3.11+ và một PostgreSQL đang chạy (hoặc dùng `docker compose up -d postgres`).
+Yêu cầu: Python 3.11+, [uv](https://docs.astral.sh/uv/) và Docker Desktop/Compose v2 khi cần
+PostgreSQL. Dependency graph được khóa trong `uv.lock`.
 
 ```bash
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
+uv sync --frozen --extra dev --extra bench
 
-pip install -e ".[dev,bench]"
-cp .env.example .env          # rồi sửa DATABASE_URL nếu cần
+# Windows PowerShell
+Copy-Item .env.example .env
+.\scripts\preflight.ps1 -Mode api-only
 
-# Tạo schema (chọn 1 trong 2):
-alembic upgrade head          # cách chuẩn
-# hoặc đặt DB_AUTO_CREATE=true trong .env để app tự tạo bảng lúc khởi động
+# Bash/WSL
+cp .env.example .env
+bash scripts/preflight.sh api-only
+```
 
-uvicorn app.main:app --reload
+Sau khi Docker/PostgreSQL đã khởi động, dùng mode `development` hoặc `postgres-test` để kiểm tra
+đầy đủ. Preflight không tạo/xóa database và không in secret hay URL đầy đủ. Hướng dẫn Windows/WSL2
+và troubleshooting: [docs/infrastructure-readiness-report.md](docs/infrastructure-readiness-report.md).
+
+Chạy API local:
+
+```bash
+docker compose up -d postgres
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+```
+
+Hoặc dùng `scripts/run-dev.ps1` / `scripts/run-dev.sh`. Để cập nhật dependency có chủ đích, sửa
+`pyproject.toml`, chạy `uv lock`, rồi xác nhận lại bằng `uv sync --frozen --all-extras`.
+
+Các quality command chuẩn:
+
+```bash
+uv run --frozen --extra dev ruff format --check app tests alembic scripts
+uv run --frozen --extra dev ruff check app tests alembic scripts
+uv run --frozen --extra dev pytest
+uv run --frozen --extra dev pytest --cov=app --cov-report=term-missing --cov-fail-under=95
 ```
 
 Mở http://localhost:8000/docs
+
+### Functional demo không cần Docker
+
+Trên Windows PowerShell, lệnh sau tạo database SQLite demo riêng, khởi động API, chạy các luồng
+auth/event/booking chính, dừng server và sinh báo cáo đã loại token/password:
+
+```powershell
+.\scripts\run-demo.ps1
+```
+
+Kết quả nằm tại `artifacts/demo/latest-demo-report.md` và `.json`. Trên Bash/WSL:
+
+```bash
+bash scripts/run-demo.sh
+```
+
+Demo SQLite dùng để trình diễn chức năng, không thay thế bằng chứng PostgreSQL concurrency hoặc
+benchmark. Hướng dẫn tự thao tác qua Swagger và chạy demo bằng Docker:
+[docs/demo-guide.md](docs/demo-guide.md).
 
 ## 8. Chạy bằng Docker
 
@@ -151,32 +190,33 @@ docker compose up -d --build
 curl http://localhost:8000/health
 ```
 
-Lệnh này dựng PostgreSQL 16 (cổng 5432) và API (cổng 8000). API chờ database healthy rồi mới khởi
-động, và tự tạo schema vì `DB_AUTO_CREATE=true` trong compose.
+Lệnh này dựng PostgreSQL 16 (cổng 5432), chạy Alembic tới `head`, rồi mới khởi động API ở cổng
+8000. `DB_AUTO_CREATE=false`; lỗi migration làm API không khởi động.
 
 Dừng: `docker compose down` (thêm `-v` để xoá luôn dữ liệu).
 
 ## 9. Chạy test
 
 ```bash
-pytest                    # toàn bộ; test concurrency sẽ SKIP nếu chưa có PostgreSQL
-pytest tests/unit         # chỉ unit + test kiến trúc, rất nhanh
-pytest --cov=app          # kèm coverage
+uv run pytest                    # toàn bộ; concurrency SKIP nếu thiếu TEST_DATABASE_URL
+uv run pytest tests/unit         # unit + kiến trúc
+uv run pytest --cov=app          # coverage
 ```
 
-Bật test chống bán vượt vé (cần PostgreSQL thật, vì nó phụ thuộc row lock):
+Bật test chống bán vượt vé trên database disposable riêng (cổng 5433):
 
 ```bash
-docker compose up -d postgres
+docker compose --profile test up -d postgres-test
 # Windows PowerShell:
-$env:TEST_DATABASE_URL="postgresql+psycopg://eventhub:eventhub@localhost:5432/eventhub_ktpm"
+$env:TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
 # Linux/macOS:
-export TEST_DATABASE_URL="postgresql+psycopg://eventhub:eventhub@localhost:5432/eventhub_ktpm"
+export TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
 
-pytest tests/concurrency -v
+uv run pytest tests/concurrency -v
 ```
 
-Hoặc dùng script: `scripts/run-tests.ps1` (Windows) / `scripts/run-tests.sh` (Linux/macOS).
+Hoặc dùng `scripts/run-tests.ps1 -WithDb` / `scripts/run-tests.sh --with-db`. Các script không bao
+giờ trỏ fixture phá schema vào database phát triển.
 
 Chi tiết: [docs/testing.md](docs/testing.md).
 
@@ -206,7 +246,7 @@ Bảng ghi kết quả: [docs/benchmark.md](docs/benchmark.md).
 
 Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
 tự động bằng AST, 14 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
-Swagger và đóng gói Docker. Lần stabilization gần nhất thu được **158 test collected: 153 pass,
+Swagger và đóng gói Docker. Lần kiểm tra hạ tầng gần nhất thu được **164 test collected: 159 pass,
 5 PostgreSQL concurrency test skip** khi máy kiểm tra không có PostgreSQL. Git history ghi nhận một
 lần chạy cũ trên PostgreSQL, nhưng không có raw test log kèm theo để tái lập. Đã chạy load test thật
 trên Kaggle CPU cho hai kịch bản S2 (baseline throughput) và S3 (tranh chấp ghi) — số liệu và phân
