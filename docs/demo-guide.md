@@ -3,6 +3,28 @@
 Hướng dẫn này tạo bằng chứng ban đầu cho các chức năng đã có của EventHub-KTPM. Nó không thêm chức
 năng sản phẩm và không phải benchmark.
 
+## 0. Trình diễn frontend MVP
+
+Từ Windows Command Prompt, chuẩn bị database một lần nếu cần rồi khởi động ứng dụng:
+
+```cmd
+scripts\setup-local.cmd
+scripts\run-dev.cmd
+```
+
+Mở `http://localhost:8000/app/`. Một luồng trình bày ngắn:
+
+1. Tại trang khám phá, tìm kiếm/lọc sự kiện và mở chi tiết một sự kiện.
+2. Đăng ký tài khoản `ORGANIZER`, mở **Quản lý**, tạo rồi phát hành một sự kiện.
+3. Đăng xuất, đăng ký tài khoản `USER`, tìm sự kiện vừa phát hành và đặt vé.
+4. Mở **Vé của tôi**, xem chi tiết rồi hủy vé.
+5. Đăng nhập lại bằng tài khoản organizer để hủy sự kiện nếu muốn trình diễn vòng đời.
+
+JWT chỉ được giữ trong `sessionStorage`, vì vậy đóng tab sẽ kết thúc phiên phía frontend. MVP không
+có endpoint liệt kê sự kiện của organizer; giao diện lưu ID các sự kiện vừa tạo trong tab hiện tại
+và cho phép nạp một sự kiện thuộc quyền sở hữu bằng ID. Xem đầy đủ tại
+[frontend-mvp.md](frontend-mvp.md).
+
 ## 1. Cách nhanh nhất trên Windows
 
 Yêu cầu: Python 3.11+ và `uv`. Không cần Docker/PostgreSQL.

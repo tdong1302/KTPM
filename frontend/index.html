@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="EventHub - giao diện khám phá sự kiện và quản lý đặt vé."
+    />
+    <meta name="theme-color" content="#f7f7f2" />
+    <title>EventHub · Trải nghiệm sự kiện</title>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./assets/styles.css" />
+    <script type="module" src="./assets/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Đi đến nội dung chính</a>
+
+    <div id="app-shell" class="app-shell">
+      <header class="site-header">
+        <a class="brand" href="/app/" aria-label="EventHub - trang sự kiện">
+          <span class="brand-mark" aria-hidden="true">EH</span>
+          <span>
+            <strong>EventHub</strong>
+            <small>Make moments matter</small>
+          </span>
+        </a>
+
+        <nav class="main-nav" aria-label="Điều hướng chính">
+          <button class="nav-link is-active" type="button" data-view="events">
+            Khám phá
+          </button>
+          <button class="nav-link" type="button" data-view="bookings" data-user-only hidden>
+            Vé của tôi
+          </button>
+          <button
+            class="nav-link"
+            type="button"
+            data-view="organizer"
+            data-organizer-only
+            hidden
+          >
+            Tổ chức sự kiện
+          </button>
+        </nav>
+
+        <div class="account-area">
+          <div id="account-summary" class="account-summary" hidden>
+            <span class="avatar" id="account-avatar" aria-hidden="true">EH</span>
+            <span class="account-copy">
+              <strong id="account-name"></strong>
+              <small id="account-role"></small>
+            </span>
+          </div>
+          <button id="auth-open-button" class="button button-primary button-small" type="button">
+            Đăng nhập
+          </button>
+          <button id="logout-button" class="button button-ghost button-small" type="button" hidden>
+            Đăng xuất
+          </button>
+        </div>
+      </header>
+
+      <main id="main-content" tabindex="-1">
+        <section id="view-events" class="view" data-view-panel="events">
+          <div class="hero">
+            <div class="hero-copy">
+              <p class="eyebrow">Sự kiện đáng nhớ, bắt đầu tại đây</p>
+              <h1>Tìm trải nghiệm dành riêng cho bạn.</h1>
+              <p class="hero-description">
+                Khám phá các sự kiện đang mở bán, kiểm tra số vé còn lại và đặt vé trong vài bước
+                rõ ràng.
+              </p>
+              <div class="hero-actions">
+                <button class="button button-primary" type="button" id="explore-button">
+                  Khám phá sự kiện
+                </button>
+                <button class="button button-secondary" type="button" id="hero-auth-button">
+                  Tạo tài khoản
+                </button>
+              </div>
+            </div>
+            <aside class="hero-card" aria-label="Thông tin nền tảng">
+              <span class="hero-orbit hero-orbit-one" aria-hidden="true"></span>
+              <span class="hero-orbit hero-orbit-two" aria-hidden="true"></span>
+              <p class="hero-card-label">EventHub</p>
+              <p class="hero-card-title">Khám phá.<br />Đặt vé.<br />Trải nghiệm.</p>
+              <div class="hero-card-note">
+                <span class="pulse-dot" aria-hidden="true"></span>
+                Dữ liệu sự kiện trực tiếp từ hệ thống
+              </div>
+            </aside>
+          </div>
+
+          <div id="event-catalogue" class="catalogue-section">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Danh mục công khai</p>
+                <h2>Sự kiện đang mở</h2>
+              </div>
+              <button id="refresh-events" class="button button-ghost" type="button">
+                Làm mới
+              </button>
+            </div>
+
+            <form id="event-filters" class="filter-panel" aria-label="Bộ lọc sự kiện">
+              <div class="field field-search">
+                <label for="filter-query">Tìm kiếm</label>
+                <input
+                  id="filter-query"
+                  name="q"
+                  type="search"
+                  placeholder="Tên hoặc mô tả sự kiện"
+                />
+              </div>
+              <div class="field">
+                <label for="filter-city">Thành phố</label>
+                <input id="filter-city" name="city" type="text" placeholder="Ví dụ: Hà Nội" />
+              </div>
+              <div class="field">
+                <label for="filter-category">Danh mục</label>
+                <input
+                  id="filter-category"
+                  name="category"
+                  type="text"
+                  placeholder="Ví dụ: music"
+                />
+              </div>
+              <div class="field">
+                <label for="filter-sort">Sắp xếp</label>
+                <select id="filter-sort" name="sort">
+                  <option value="start_time:asc">Sắp diễn ra</option>
+                  <option value="start_time:desc">Ngày xa nhất</option>
+                  <option value="price:asc">Giá thấp trước</option>
+                  <option value="price:desc">Giá cao trước</option>
+                  <option value="created_at:desc">Mới đăng</option>
+                </select>
+              </div>
+              <div class="filter-actions">
+                <button class="button button-primary" type="submit">Áp dụng</button>
+                <button class="button button-ghost" type="reset">Xóa lọc</button>
+              </div>
+            </form>
+
+            <div class="catalogue-meta">
+              <p id="events-summary" class="muted" aria-live="polite">Đang tải sự kiện…</p>
+            </div>
+            <div id="event-grid" class="event-grid" aria-busy="true"></div>
+            <nav class="pagination" aria-label="Phân trang sự kiện">
+              <button id="events-previous" class="button button-ghost" type="button">
+                Trang trước
+              </button>
+              <span id="events-page-label" aria-live="polite">Trang 1</span>
+              <button id="events-next" class="button button-ghost" type="button">
+                Trang sau
+              </button>
+            </nav>
+          </div>
+        </section>
+
+        <section id="view-auth" class="view auth-view" data-view-panel="auth" hidden>
+          <div class="auth-intro">
+            <p class="eyebrow">Chào mừng đến EventHub</p>
+            <h1>Một tài khoản, trọn hành trình sự kiện.</h1>
+            <p>
+              Đăng nhập để đặt vé, hoặc tạo tài khoản nhà tổ chức để đưa sự kiện của bạn đến với
+              cộng đồng.
+            </p>
+            <ul class="feature-list">
+              <li>Khám phá và đặt vé với dữ liệu tồn kho trực tiếp</li>
+              <li>Quản lý các sự kiện vừa tạo trong phiên hiện tại</li>
+              <li>Trạng thái và lỗi được phản hồi rõ ràng từ hệ thống</li>
+            </ul>
+          </div>
+
+          <div class="auth-card">
+            <div class="tab-list" role="tablist" aria-label="Tài khoản">
+              <button
+                id="login-tab"
+                class="tab-button is-active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="login-panel"
+              >
+                Đăng nhập
+              </button>
+              <button
+                id="register-tab"
+                class="tab-button"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="register-panel"
+              >
+                Đăng ký
+              </button>
+            </div>
+
+            <div id="login-panel" role="tabpanel" aria-labelledby="login-tab">
+              <form id="login-form" class="stack-form">
+                <div class="field">
+                  <label for="login-email">Email</label>
+                  <input id="login-email" name="email" type="email" autocomplete="email" required />
+                </div>
+                <div class="field">
+                  <label for="login-password">Mật khẩu</label>
+                  <input
+                    id="login-password"
+                    name="password"
+                    type="password"
+                    autocomplete="current-password"
+                    required
+                  />
+                </div>
+                <p class="form-message" data-form-message aria-live="polite"></p>
+                <button class="button button-primary button-block" type="submit">
+                  Đăng nhập
+                </button>
+              </form>
+            </div>
+
+            <div id="register-panel" role="tabpanel" aria-labelledby="register-tab" hidden>
+              <form id="register-form" class="stack-form">
+                <div class="field">
+                  <label for="register-name">Họ và tên</label>
+                  <input
+                    id="register-name"
+                    name="full_name"
+                    type="text"
+                    autocomplete="name"
+                    maxlength="150"
+                    required
+                  />
+                </div>
+                <div class="field">
+                  <label for="register-email">Email</label>
+                  <input
+                    id="register-email"
+                    name="email"
+                    type="email"
+                    autocomplete="email"
+                    required
+                  />
+                </div>
+                <div class="field">
+                  <label for="register-password">Mật khẩu</label>
+                  <input
+                    id="register-password"
+                    name="password"
+                    type="password"
+                    autocomplete="new-password"
+                    minlength="8"
+                    maxlength="128"
+                    aria-describedby="password-help"
+                    required
+                  />
+                  <small id="password-help" class="field-help">Tối thiểu 8 ký tự.</small>
+                </div>
+                <fieldset class="role-choice">
+                  <legend>Bạn muốn sử dụng EventHub như thế nào?</legend>
+                  <label class="choice-card">
+                    <input type="radio" name="role" value="USER" checked />
+                    <span><strong>Người tham dự</strong><small>Khám phá và đặt vé</small></span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="role" value="ORGANIZER" />
+                    <span><strong>Nhà tổ chức</strong><small>Tạo và phát hành sự kiện</small></span>
+                  </label>
+                </fieldset>
+                <p class="form-message" data-form-message aria-live="polite"></p>
+                <button class="button button-primary button-block" type="submit">
+                  Tạo tài khoản
+                </button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-bookings" class="view dashboard-view" data-view-panel="bookings" hidden>
+          <div class="dashboard-heading">
+            <div>
+              <p class="eyebrow">Tài khoản người tham dự</p>
+              <h1>Vé của tôi</h1>
+              <p class="muted">Theo dõi chi tiết và trạng thái các lượt đặt vé của bạn.</p>
+            </div>
+            <button id="refresh-bookings" class="button button-secondary" type="button">
+              Làm mới danh sách
+            </button>
+          </div>
+          <p id="bookings-summary" class="muted" aria-live="polite"></p>
+          <div id="booking-list" class="booking-list" aria-busy="false"></div>
+          <nav class="pagination" aria-label="Phân trang vé">
+            <button id="bookings-previous" class="button button-ghost" type="button">
+              Trang trước
+            </button>
+            <span id="bookings-page-label">Trang 1</span>
+            <button id="bookings-next" class="button button-ghost" type="button">
+              Trang sau
+            </button>
+          </nav>
+        </section>
+
+        <section
+          id="view-organizer"
+          class="view dashboard-view"
+          data-view-panel="organizer"
+          hidden
+        >
+          <div class="dashboard-heading">
+            <div>
+              <p class="eyebrow">Không gian nhà tổ chức</p>
+              <h1>Tạo khoảnh khắc tiếp theo.</h1>
+              <p class="muted">
+                Tạo bản nháp, kiểm tra thông tin rồi phát hành khi sự kiện đã sẵn sàng.
+              </p>
+            </div>
+            <span class="status-badge status-organizer">ORGANIZER</span>
+          </div>
+
+          <div class="organizer-layout">
+            <form id="event-create-form" class="surface stack-form">
+              <div class="surface-heading">
+                <span class="step-number" aria-hidden="true">01</span>
+                <div>
+                  <h2>Tạo sự kiện mới</h2>
+                  <p class="muted">Sự kiện sẽ bắt đầu ở trạng thái bản nháp.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field field-span-2">
+                  <label for="event-title">Tên sự kiện</label>
+                  <input id="event-title" name="title" type="text" maxlength="150" required />
+                </div>
+                <div class="field field-span-2">
+                  <label for="event-description">Mô tả</label>
+                  <textarea
+                    id="event-description"
+                    name="description"
+                    rows="4"
+                    maxlength="2000"
+                  ></textarea>
+                </div>
+                <div class="field">
+                  <label for="event-category">Danh mục</label>
+                  <input id="event-category" name="category" type="text" maxlength="64" required />
+                </div>
+                <div class="field">
+                  <label for="event-city">Thành phố</label>
+                  <input id="event-city" name="city" type="text" maxlength="100" required />
+                </div>
+                <div class="field field-span-2">
+                  <label for="event-location">Địa điểm</label>
+                  <input id="event-location" name="location" type="text" maxlength="255" required />
+                </div>
+                <div class="field">
+                  <label for="event-start">Bắt đầu</label>
+                  <input id="event-start" name="start_time" type="datetime-local" required />
+                </div>
+                <div class="field">
+                  <label for="event-end">Kết thúc</label>
+                  <input id="event-end" name="end_time" type="datetime-local" required />
+                </div>
+                <div class="field">
+                  <label for="event-capacity">Số vé</label>
+                  <input
+                    id="event-capacity"
+                    name="total_tickets"
+                    type="number"
+                    min="1"
+                    max="1000000"
+                    value="100"
+                    required
+                  />
+                </div>
+                <div class="field">
+                  <label for="event-price">Giá mỗi vé</label>
+                  <input
+                    id="event-price"
+                    name="price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value="0"
+                    required
+                  />
+                </div>
+              </div>
+              <p class="form-message" data-form-message aria-live="polite"></p>
+              <button class="button button-primary" type="submit">Lưu bản nháp</button>
+            </form>
+
+            <aside class="surface session-events">
+              <div class="surface-heading compact">
+                <span class="step-number" aria-hidden="true">02</span>
+                <div>
+                  <h2>Sự kiện trong phiên</h2>
+                  <p class="muted">Quản lý sự kiện vừa tạo hoặc tải lại bằng ID.</p>
+                </div>
+              </div>
+              <form id="organizer-load-form" class="inline-form">
+                <div class="field">
+                  <label for="organizer-event-id">ID sự kiện</label>
+                  <input id="organizer-event-id" name="event_id" type="number" min="1" required />
+                </div>
+                <button class="button button-secondary" type="submit">Tải sự kiện</button>
+              </form>
+              <p class="limitation-note">
+                API hiện chưa có endpoint liệt kê toàn bộ sự kiện của nhà tổ chức. EventHub chỉ giữ
+                các ID bạn vừa tạo hoặc tải trong phiên trình duyệt này.
+              </p>
+              <p class="form-message" id="organizer-message" aria-live="polite"></p>
+              <div id="organizer-event-list" class="organizer-event-list"></div>
+            </aside>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div>
+          <strong>EventHub</strong>
+          <p>Frontend MVP · FastAPI cùng nguồn · Không phụ thuộc build tool</p>
+        </div>
+        <div class="footer-links">
+          <a href="/docs">Swagger API</a>
+          <a href="/health">Trạng thái hệ thống</a>
+        </div>
+      </footer>
+    </div>
+
+    <dialog id="event-dialog" class="modal" aria-labelledby="event-dialog-title">
+      <div class="modal-header">
+        <p id="event-dialog-title" class="eyebrow">Chi tiết sự kiện</p>
+        <button class="icon-button" type="button" data-close-dialog="event-dialog">
+          <span aria-hidden="true">×</span><span class="sr-only">Đóng</span>
+        </button>
+      </div>
+      <div id="event-dialog-content"></div>
+    </dialog>
+
+    <dialog id="booking-dialog" class="modal modal-small" aria-labelledby="booking-dialog-title">
+      <div class="modal-header">
+        <p id="booking-dialog-title" class="eyebrow">Chi tiết đặt vé</p>
+        <button class="icon-button" type="button" data-close-dialog="booking-dialog">
+          <span aria-hidden="true">×</span><span class="sr-only">Đóng</span>
+        </button>
+      </div>
+      <div id="booking-dialog-content"></div>
+    </dialog>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>
