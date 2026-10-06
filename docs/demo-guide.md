@@ -15,15 +15,15 @@ scripts\run-dev.cmd
 Mở `http://localhost:8000/app/`. Một luồng trình bày ngắn:
 
 1. Tại trang khám phá, tìm kiếm/lọc sự kiện và mở chi tiết một sự kiện.
-2. Đăng ký tài khoản `ORGANIZER`, mở **Quản lý**, tạo rồi phát hành một sự kiện.
-3. Đăng xuất, đăng ký tài khoản `USER`, tìm sự kiện vừa phát hành và đặt vé.
-4. Mở **Vé của tôi**, xem chi tiết rồi hủy vé.
-5. Đăng nhập lại bằng tài khoản organizer để hủy sự kiện nếu muốn trình diễn vòng đời.
+2. Đăng ký tài khoản `ORGANIZER`, mở **Quản lý** và tạo một sự kiện.
+3. Xác nhận draft tự xuất hiện trong **Sự kiện của tôi**, lọc `DRAFT` rồi phát hành.
+4. Đăng xuất, đăng ký tài khoản `USER`, tìm sự kiện vừa phát hành và đặt vé.
+5. Mở **Vé của tôi**, xem chi tiết rồi hủy vé.
+6. Đăng nhập lại bằng tài khoản organizer để hủy sự kiện nếu muốn trình diễn vòng đời.
 
-JWT chỉ được giữ trong `sessionStorage`, vì vậy đóng tab sẽ kết thúc phiên phía frontend. MVP không
-có endpoint liệt kê sự kiện của organizer; giao diện lưu ID các sự kiện vừa tạo trong tab hiện tại
-và cho phép nạp một sự kiện thuộc quyền sở hữu bằng ID. Xem đầy đủ tại
-[frontend-mvp.md](frontend-mvp.md).
+JWT chỉ được giữ trong `sessionStorage`, vì vậy đóng tab sẽ kết thúc phiên phía frontend. Dashboard
+lấy danh sách sở hữu từ `GET /api/events/mine`; backend suy ra organizer từ token và không tin owner
+ID do client cung cấp. Xem đầy đủ tại [frontend-mvp.md](frontend-mvp.md).
 
 ## 1. Cách nhanh nhất trên Windows
 

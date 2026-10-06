@@ -202,3 +202,59 @@ class TestVisibilityAndSearch:
         make_event(uow, ORGANIZER_ID, status=EventStatus.PUBLISHED)
         result = service.search_public(EventQuery(sort_by="password_hash"), page=1, size=10)
         assert result.total == 1
+
+
+class TestListMine:
+    def test_returns_only_events_owned_by_the_organizer_including_all_statuses(self, service, uow):
+        owned = [
+            make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT),
+            make_event(uow, ORGANIZER_ID, status=EventStatus.PUBLISHED),
+            make_event(uow, ORGANIZER_ID, status=EventStatus.CANCELLED),
+            make_event(uow, ORGANIZER_ID, status=EventStatus.COMPLETED),
+        ]
+        make_event(uow, OTHER_ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        result = service.list_mine(ORGANIZER_ID, UserRole.ORGANIZER, page=1, size=20)
+
+        assert {event.id for event in result.items} == {event.id for event in owned}
+        assert result.total == 4
+
+    def test_forwards_pagination_owner_and_newest_first_ordering(self, service, uow):
+        for _ in range(3):
+            make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        result = service.list_mine(ORGANIZER_ID, UserRole.ORGANIZER, page=2, size=1)
+
+        query, page, size = uow.events.search_calls[-1]
+        assert (page, size) == (2, 1)
+        assert query.organizer_id == ORGANIZER_ID
+        assert query.sort_by == "created_at"
+        assert query.sort_desc is True
+        assert (result.page, result.size, result.total) == (2, 1, 3)
+
+    def test_filters_by_status(self, service, uow):
+        draft = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+        make_event(uow, ORGANIZER_ID, status=EventStatus.PUBLISHED)
+
+        result = service.list_mine(
+            ORGANIZER_ID,
+            UserRole.ORGANIZER,
+            page=1,
+            size=20,
+            event_status=EventStatus.DRAFT,
+        )
+
+        assert [event.id for event in result.items] == [draft.id]
+        assert uow.events.search_calls[-1][0].status == EventStatus.DRAFT
+
+    def test_rejects_plain_user(self, service):
+        with pytest.raises(ForbiddenError):
+            service.list_mine(ORGANIZER_ID, UserRole.USER, page=1, size=20)
+
+    def test_admin_lists_only_events_owned_by_that_admin(self, service, uow):
+        owned = make_event(uow, 99, status=EventStatus.DRAFT)
+        make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        result = service.list_mine(99, UserRole.ADMIN, page=1, size=20)
+
+        assert [event.id for event in result.items] == [owned.id]

@@ -57,6 +57,18 @@ def test_frontend_does_not_displace_api_or_documentation(client):
         for method in path_item
         if method in {"get", "post", "patch", "delete"}
     }
-    assert len(operations) == 14
+    assert len(operations) == 15
     assert ("GET", "/api/events") in operations
+    assert ("GET", "/api/events/mine") in operations
     assert ("POST", "/api/bookings") in operations
+
+
+def test_frontend_organizer_dashboard_uses_owned_event_endpoint(client):
+    shell = client.get("/app/").text
+    application = client.get("/app/assets/app.js").text
+
+    assert 'id="organizer-event-list"' in shell
+    assert 'id="organizer-status-filter"' in shell
+    assert 'api.get("/api/events/mine"' in application
+    assert "eventhub.organizer-events" not in application
+    assert "organizerStorageKey" not in application

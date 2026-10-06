@@ -79,6 +79,7 @@ class FakeEventRepository:
         self.rows: dict[int, Event] = {}
         self._next_id = 1
         self.lock_calls = 0
+        self.search_calls: list[tuple[EventQuery, int, int]] = []
 
     def add(self, event: Event) -> Event:
         stored = replace(event, id=self._next_id)
@@ -102,6 +103,7 @@ class FakeEventRepository:
         self.rows.pop(event_id, None)
 
     def search(self, query: EventQuery, page: int, size: int) -> tuple[list[Event], int]:
+        self.search_calls.append((query, page, size))
         items = list(self.rows.values())
         if query.status is not None:
             items = [e for e in items if e.status == query.status]

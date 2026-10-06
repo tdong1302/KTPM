@@ -36,7 +36,7 @@ transaction vẫn do backend quyết định.
 resolve từ vị trí source, không phụ thuộc thư mục hiện tại của terminal. Middleware cho phép GET và
 HEAD dưới `/app`, trong khi chính sách xác thực của `/api/...` không thay đổi.
 
-Static mount không xuất hiện trong OpenAPI; 14 operation nghiệp vụ vẫn giữ nguyên. Không cần CORS vì
+Static mount không xuất hiện trong OpenAPI; API có 15 operation nghiệp vụ. Không cần CORS vì
 HTML, JavaScript và API cùng origin. Docker image copy đúng thư mục `frontend`, không chia sẻ phần
 còn lại của repository.
 
@@ -78,11 +78,14 @@ Frontend dùng validation HTML để phản hồi sớm, nhưng kết quả back
 
 1. Đăng ký với vai trò **Nhà tổ chức** hoặc đăng nhập.
 2. Tạo sự kiện; API trả về bản nháp `DRAFT`.
-3. Xem lại bản nháp trong vùng **Sự kiện trong phiên**.
-4. Phát hành bản nháp đủ điều kiện, hủy sự kiện hợp lệ, hoặc xóa bản nháp hợp lệ.
-5. Có thể tải lại một sự kiện thuộc sở hữu bằng ID.
+3. Bảng **Sự kiện của tôi** gọi `GET /api/events/mine` và hiển thị toàn bộ sự kiện thuộc tài khoản.
+4. Lọc theo trạng thái, chuyển trang, làm mới hoặc mở chi tiết sự kiện.
+5. Phát hành bản nháp đủ điều kiện, hủy sự kiện hợp lệ, hoặc xóa bản nháp hợp lệ; danh sách được
+   tải lại sau mỗi thao tác.
 
-Frontend không có chỉnh sửa sự kiện vì API không có endpoint update.
+Frontend không lưu danh sách event ID trong trình duyệt. Owner ID được backend lấy từ JWT, không lấy
+từ query hoặc trạng thái phía client. Frontend vẫn không có chỉnh sửa sự kiện vì API không có
+endpoint update.
 
 ## 7. Xác thực và token
 
@@ -133,8 +136,6 @@ Test delivery kiểm tra HTML shell, MIME type của CSS/JavaScript, route API/d
 
 ## 11. Giới hạn do API hiện tại
 
-- Không có endpoint liệt kê toàn bộ sự kiện thuộc nhà tổ chức. Frontend chỉ giữ ID sự kiện vừa tạo
-  hoặc tải trong `sessionStorage` của tab và nói rõ giới hạn này trong UI.
 - Không có endpoint chỉnh sửa sự kiện.
 - Không có API chuyển sự kiện sang `COMPLETED`.
 - Không có danh sách/search booking toàn hệ thống cho `ADMIN`.
@@ -151,8 +152,9 @@ framework, Node build pipeline, async SQLAlchemy, cache/Redis và tối ưu Phas
 
 1. Mở `/app/`, thử tìm kiếm và responsive mobile width.
 2. Đăng ký `ORGANIZER`, chỉ ra thông tin `/me` ở header.
-3. Tạo draft, thử phát hành, rồi quay lại danh mục thấy event công khai.
-4. Đăng xuất; đăng ký `USER` và xác nhận không có control tổ chức.
-5. Mở event, đặt hai vé và chỉ ra inventory giảm.
-6. Mở **Vé của tôi**, xem chi tiết và hủy; quay lại event để thấy inventory phục hồi.
-7. Thử mật khẩu sai để minh họa lỗi inline; đăng xuất để xác nhận UI bảo vệ được xóa.
+3. Tạo draft và chỉ ra sự kiện tự xuất hiện trong **Sự kiện của tôi**, không cần nhập ID.
+4. Lọc trạng thái `DRAFT`, phát hành sự kiện và quan sát dashboard tự làm mới.
+5. Đăng xuất; đăng ký `USER` và xác nhận không có control tổ chức.
+6. Mở event, đặt hai vé và chỉ ra inventory giảm.
+7. Mở **Vé của tôi**, xem chi tiết và hủy; quay lại event để thấy inventory phục hồi.
+8. Thử mật khẩu sai để minh họa lỗi inline; đăng xuất để xác nhận UI bảo vệ được xóa.

@@ -61,6 +61,28 @@ class EventService:
             items, total = uow.events.search(effective, page, size)
             return Page(items=items, total=total, page=page, size=size)
 
+    def list_mine(
+        self,
+        actor_id: int,
+        actor_role: UserRole,
+        page: int,
+        size: int,
+        event_status: EventStatus | None = None,
+    ) -> Page[Event]:
+        """Return every event owned by the authenticated organizer or admin."""
+        if not actor_role.can_organize:
+            raise ForbiddenError("only ORGANIZER or ADMIN can list owned events")
+        page, size = normalise_paging(page, size)
+        query = EventQuery(
+            status=event_status,
+            organizer_id=actor_id,
+            sort_by="created_at",
+            sort_desc=True,
+        )
+        with self._uow as uow:
+            items, total = uow.events.search(query, page, size)
+            return Page(items=items, total=total, page=page, size=size)
+
     def get(
         self, event_id: int, actor_id: int | None = None, actor_role: UserRole | None = None
     ) -> Event:
