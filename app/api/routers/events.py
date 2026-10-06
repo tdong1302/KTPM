@@ -8,8 +8,8 @@ from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import CurrentUser, EventServiceDep, OptionalUser
 from app.api.schemas.common import ErrorResponse, PageResponse
-from app.api.schemas.events import CreateEventRequest, EventResponse
-from app.application.event_service import CreateEventCommand
+from app.api.schemas.events import CreateEventRequest, EventResponse, UpdateEventRequest
+from app.application.event_service import CreateEventCommand, UpdateEventCommand
 from app.application.ports import EventQuery
 from app.domain.enums import EventStatus
 from app.domain.models import Event
@@ -145,6 +145,22 @@ def create_event(
         ),
     )
     return to_event_response(event)
+
+
+@router.patch(
+    "/{event_id}",
+    response_model=EventResponse,
+    summary="Edit a draft event (requires authentication, owner or ADMIN)",
+    responses={**UNAUTHORIZED, **FORBIDDEN, **NOT_FOUND},
+)
+def update_event(
+    event_id: int,
+    payload: UpdateEventRequest,
+    service: EventServiceDep,
+    principal: CurrentUser,
+) -> EventResponse:
+    command = UpdateEventCommand(**payload.model_dump(exclude_unset=True))
+    return to_event_response(service.update(event_id, principal.user_id, principal.role, command))
 
 
 @router.patch(

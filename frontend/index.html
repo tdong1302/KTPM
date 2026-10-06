@@ -456,6 +456,96 @@
       <div id="event-dialog-content"></div>
     </dialog>
 
+    <dialog id="event-edit-dialog" class="modal modal-wide" aria-labelledby="event-edit-title">
+      <div class="modal-header">
+        <p id="event-edit-title" class="eyebrow">Chỉnh sửa bản nháp</p>
+        <button class="icon-button" type="button" data-close-dialog="event-edit-dialog">
+          <span aria-hidden="true">×</span><span class="sr-only">Đóng</span>
+        </button>
+      </div>
+      <p id="event-edit-loading" class="dialog-status" aria-live="polite">
+        Đang tải thông tin sự kiện…
+      </p>
+      <form id="event-edit-form" class="event-edit-form stack-form" hidden>
+        <div class="form-grid">
+          <div class="field field-span-2">
+            <label for="edit-event-title">Tên sự kiện</label>
+            <input id="edit-event-title" name="title" type="text" maxlength="150" required />
+          </div>
+          <div class="field field-span-2">
+            <label for="edit-event-description">Mô tả</label>
+            <textarea
+              id="edit-event-description"
+              name="description"
+              rows="4"
+              maxlength="2000"
+            ></textarea>
+          </div>
+          <div class="field">
+            <label for="edit-event-category">Danh mục</label>
+            <input
+              id="edit-event-category"
+              name="category"
+              type="text"
+              maxlength="64"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="edit-event-city">Thành phố</label>
+            <input id="edit-event-city" name="city" type="text" maxlength="100" required />
+          </div>
+          <div class="field field-span-2">
+            <label for="edit-event-location">Địa điểm</label>
+            <input
+              id="edit-event-location"
+              name="location"
+              type="text"
+              maxlength="255"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="edit-event-start">Bắt đầu</label>
+            <input id="edit-event-start" name="start_time" type="datetime-local" required />
+          </div>
+          <div class="field">
+            <label for="edit-event-end">Kết thúc</label>
+            <input id="edit-event-end" name="end_time" type="datetime-local" required />
+          </div>
+          <div class="field">
+            <label for="edit-event-capacity">Số vé</label>
+            <input
+              id="edit-event-capacity"
+              name="total_tickets"
+              type="number"
+              min="1"
+              max="1000000"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="edit-event-price">Giá mỗi vé</label>
+            <input
+              id="edit-event-price"
+              name="price"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+        </div>
+        <p class="form-message" data-form-message aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="button button-primary" type="submit">Lưu thay đổi</button>
+          <button class="button button-ghost" type="button" data-close-dialog="event-edit-dialog">
+            Hủy
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="booking-dialog" class="modal modal-small" aria-labelledby="booking-dialog-title">
       <div class="modal-header">
         <p id="booking-dialog-title" class="eyebrow">Chi tiết đặt vé</p>

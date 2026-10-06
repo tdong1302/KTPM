@@ -16,10 +16,12 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from threading import Event as ThreadEvent
 
 import pytest
 
 from app.application.booking_service import BookingService
+from app.application.event_service import EventService, UpdateEventCommand
 from app.config import Settings
 from app.domain.enums import BookingStatus, EventStatus, UserRole
 from app.domain.errors import DomainError
@@ -137,6 +139,60 @@ def _read_state(session_factory, event_id: int) -> tuple[int, int]:
         return event.available_tickets, sold
 
 
+def _seed_draft(session_factory) -> tuple[int, int]:
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    start = datetime.now(timezone.utc) + timedelta(days=30)
+    with uow:
+        organizer = uow.users.add(
+            User(
+                email="draft-organizer@example.com",
+                password_hash="x",
+                full_name="Draft Organizer",
+                role=UserRole.ORGANIZER,
+            )
+        )
+        event = uow.events.add(
+            Event(
+                title="Original draft",
+                description="Ready to edit",
+                category="music",
+                city="Hanoi",
+                location="Main Hall",
+                start_time=start,
+                end_time=start + timedelta(hours=3),
+                total_tickets=10,
+                price=Decimal("10.00"),
+                organizer_id=organizer.id,
+                status=EventStatus.DRAFT,
+            )
+        )
+        uow.commit()
+    return event.id, organizer.id
+
+
+class PausingLockUnitOfWork(SqlAlchemyUnitOfWork):
+    """Pause after acquiring the event lock so a competing mutation can be observed."""
+
+    def __init__(self, session_factory, acquired: ThreadEvent, release: ThreadEvent) -> None:
+        super().__init__(session_factory)
+        self._acquired = acquired
+        self._release = release
+
+    def __enter__(self):
+        uow = super().__enter__()
+        locked_get = self.events.get_for_update
+
+        def get_and_pause(event_id: int):
+            event = locked_get(event_id)
+            self._acquired.set()
+            if not self._release.wait(timeout=5):
+                raise RuntimeError("timed out waiting to release deterministic event lock")
+            return event
+
+        self.events.get_for_update = get_and_pause
+        return uow
+
+
 def test_only_one_buyer_gets_the_last_ticket(session_factory):
     event_id, buyer_ids = _seed(session_factory, total_tickets=1)
 
@@ -225,3 +281,46 @@ def test_same_booking_can_only_be_cancelled_once_concurrently(session_factory):
     assert successes == 1
     assert sold == 1
     assert available == total - sold
+
+
+def test_edit_and_publish_serialize_without_losing_the_edit(session_factory):
+    event_id, organizer_id = _seed_draft(session_factory)
+    lock_acquired = ThreadEvent()
+    release_edit = ThreadEvent()
+    publish_started = ThreadEvent()
+    publish_finished = ThreadEvent()
+
+    edit_service = EventService(
+        PausingLockUnitOfWork(session_factory, lock_acquired, release_edit), SystemClock()
+    )
+    publish_service = EventService(SqlAlchemyUnitOfWork(session_factory), SystemClock())
+
+    def edit():
+        return edit_service.update(
+            event_id,
+            organizer_id,
+            UserRole.ORGANIZER,
+            UpdateEventCommand(title="Edited before publish"),
+        )
+
+    def publish():
+        publish_started.set()
+        try:
+            return publish_service.publish(event_id, organizer_id, UserRole.ORGANIZER)
+        finally:
+            publish_finished.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        edit_result = pool.submit(edit)
+        assert lock_acquired.wait(timeout=5)
+        publish_result = pool.submit(publish)
+        assert publish_started.wait(timeout=5)
+        assert not publish_finished.wait(timeout=0.2), "publish must wait for the edit row lock"
+        release_edit.set()
+        assert edit_result.result(timeout=5).title == "Edited before publish"
+        assert publish_result.result(timeout=5).status == EventStatus.PUBLISHED
+
+    with session_factory() as session:
+        persisted = session.get(EventRecord, event_id)
+        assert persisted.title == "Edited before publish"
+        assert persisted.status == EventStatus.PUBLISHED.value

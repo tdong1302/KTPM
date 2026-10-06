@@ -160,6 +160,34 @@ Sự kiện luôn được tạo ở trạng thái `DRAFT` với `available_tick
 **Lỗi:** `403` vai trò `USER` · `400` `start_time` trong quá khứ hoặc `start_time >= end_time` ·
 `422` `total_tickets <= 0`, giá âm, trường bắt buộc rỗng
 
+### `PATCH /api/events/{id}` — 🔒 chủ sở hữu/ADMIN, chỉ `DRAFT` → `200`
+
+Cập nhật một phần sự kiện. Chỉ gửi những trường cần đổi:
+
+```json
+{
+  "title": "Rock Night — Main Stage",
+  "location": "Grand Hall",
+  "total_tickets": 150
+}
+```
+
+Các trường được phép: `title`, `description`, `category`, `city`, `location`, `start_time`,
+`end_time`, `total_tickets`, `price`. Payload rỗng, giá trị `null`, trường lạ và trường do server
+quản lý (`id`, `organizer_id`, `status`, `available_tickets`, timestamps) đều bị từ chối ở `422`.
+Giá trị bỏ qua được giữ nguyên. Chuỗi được trim và toàn bộ invariant hiện có vẫn được kiểm tra:
+tiêu đề/danh mục/thành phố/địa điểm không rỗng, giá không âm, sức chứa dương, thời gian bắt đầu ở
+tương lai và trước thời gian kết thúc.
+
+Endpoint lấy actor từ JWT và khoá dòng sự kiện trước khi kiểm tra owner/trạng thái rồi cập nhật trong
+cùng transaction. `ADMIN` giữ owner-bypass đã dùng bởi các mutation khác nhưng không thay đổi
+`organizer_id`. Vì API không cho đặt vé khi event còn `DRAFT`, đổi `total_tickets` đặt lại
+`available_tickets` bằng sức chứa mới; một draft bất thường đã có vé giữ chỗ sẽ bị từ chối.
+
+**Lỗi:** `403` vai trò không được tổ chức hoặc organizer khác · `404` không tồn tại · `409` không
+còn là `DRAFT` hoặc draft có reservation bất thường · `400` vi phạm invariant kết hợp · `422`
+payload không hợp lệ
+
 ### `PATCH /api/events/{id}/publish` — 🔒 chủ sở hữu/ADMIN → `200`
 
 `DRAFT → PUBLISHED`. Kiểm tra bổ sung khi phát hành: mô tả không rỗng, `start_time` ở tương lai.

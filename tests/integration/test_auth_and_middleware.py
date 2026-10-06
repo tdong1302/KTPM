@@ -8,6 +8,7 @@ PROTECTED_ROUTES = [
     ("GET", "/api/auth/me"),
     ("GET", "/api/events/mine"),
     ("POST", "/api/events"),
+    ("PATCH", "/api/events/1"),
     ("PATCH", "/api/events/1/publish"),
     ("PATCH", "/api/events/1/cancel"),
     ("DELETE", "/api/events/1"),

@@ -358,6 +358,32 @@ def main() -> int:
                 "owned draft appears without manually entering its ID",
             ),
         )
+        edited_title = f"EventHub Demo {suffix} Edited"
+        event = run.call(
+            "Edit draft event",
+            "PATCH",
+            f"/api/events/{event_id}",
+            200,
+            payload={"title": edited_title, "location": "Updated Demo Hall"},
+            token=organizer_token,
+            validate=lambda body: _require(
+                body["title"] == edited_title
+                and body["location"] == "Updated Demo Hall"
+                and body["status"] == "DRAFT",
+                "editable fields changed while the event remained DRAFT",
+            ),
+        )
+        run.call(
+            "Read persisted draft edit",
+            "GET",
+            f"/api/events/{event_id}",
+            200,
+            token=organizer_token,
+            validate=lambda body: _require(
+                body["title"] == edited_title and body["organizer_id"] == organizer["id"],
+                "draft edit persisted without changing ownership",
+            ),
+        )
         run.call("Draft is hidden from public", "GET", f"/api/events/{event_id}", 404)
         run.call(
             "Buyer cannot publish event",
@@ -375,6 +401,14 @@ def main() -> int:
             validate=lambda body: _require(
                 body["status"] == "PUBLISHED", "event status is PUBLISHED"
             ),
+        )
+        run.call(
+            "Reject edit after publish",
+            "PATCH",
+            f"/api/events/{event_id}",
+            409,
+            payload={"title": "Published events are immutable"},
+            token=organizer_token,
         )
         query = urllib.parse.urlencode(
             {"q": f"EventHub Demo {suffix}", "city": "Hanoi", "page": 1, "size": 5}
@@ -483,6 +517,7 @@ def main() -> int:
                 "organizer_id": organizer["id"],
                 "buyer_id": buyer["id"],
                 "event_id": event_id,
+                "event_title": event["title"],
                 "event_final_status": cancelled_event["status"],
                 "booking_id": booking_id,
                 "booking_final_status": "CANCELLED",

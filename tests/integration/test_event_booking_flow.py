@@ -248,6 +248,7 @@ class TestOpenApiContract:
         assert ("POST", "/api/auth/login") in operations
         assert ("GET", "/api/auth/me") in operations
         assert ("POST", "/api/events") in operations
+        assert ("PATCH", "/api/events/{event_id}") in operations
         assert ("DELETE", "/api/events/{event_id}") in operations
         assert ("POST", "/api/bookings") in operations
         assert ("DELETE", "/api/bookings/{booking_id}") in operations

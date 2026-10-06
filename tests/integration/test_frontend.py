@@ -57,7 +57,7 @@ def test_frontend_does_not_displace_api_or_documentation(client):
         for method in path_item
         if method in {"get", "post", "patch", "delete"}
     }
-    assert len(operations) == 15
+    assert len(operations) == 16
     assert ("GET", "/api/events") in operations
     assert ("GET", "/api/events/mine") in operations
     assert ("POST", "/api/bookings") in operations
@@ -72,3 +72,21 @@ def test_frontend_organizer_dashboard_uses_owned_event_endpoint(client):
     assert 'api.get("/api/events/mine"' in application
     assert "eventhub.organizer-events" not in application
     assert "organizerStorageKey" not in application
+
+
+def test_frontend_exposes_draft_editing_flow(client):
+    shell = client.get("/app/").text
+    application = client.get("/app/assets/app.js").text
+
+    assert 'id="event-edit-dialog"' in shell
+    assert 'id="event-edit-form"' in shell
+    assert 'organizerAction: "edit"' in application
+    assert "api.patch(`/api/events/${eventId}`, payload" in application
+    draft_branch = application.index('if (event.status === "DRAFT")')
+    edit_action = application.index('organizerAction: "edit"')
+    published_branch = application.index('else if (event.status === "PUBLISHED")')
+    assert draft_branch < edit_action < published_branch
+    assert application.count('organizerAction: "edit"') == 1
+    assert 'organizerAction: "publish"' in application
+    assert 'organizerAction: "delete"' in application
+    assert '"/api/bookings"' in application

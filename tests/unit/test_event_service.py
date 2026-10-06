@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.event_service import CreateEventCommand, EventService
+from app.application.event_service import CreateEventCommand, EventService, UpdateEventCommand
 from app.application.ports import EventQuery
 from app.domain.enums import EventStatus, UserRole
 from app.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
@@ -132,6 +132,180 @@ class TestTransitions:
     def test_unknown_event_is_not_found(self, service):
         with pytest.raises(NotFoundError):
             service.publish(4242, ORGANIZER_ID, UserRole.ORGANIZER)
+
+
+class TestUpdate:
+    def test_partial_update_changes_only_supplied_fields_and_persists(self, service, uow, clock):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        updated = service.update(
+            event.id,
+            ORGANIZER_ID,
+            UserRole.ORGANIZER,
+            UpdateEventCommand(title="  Updated concert  ", price=Decimal("75.50")),
+        )
+
+        persisted = uow.events.get_by_id(event.id)
+        assert updated.title == "Updated concert"
+        assert updated.price == Decimal("75.50")
+        assert updated.location == event.location
+        assert persisted == updated
+        assert updated.updated_at == clock.now()
+        assert uow.commits == 1
+
+    def test_update_locks_the_event_row(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        service.update(
+            event.id,
+            ORGANIZER_ID,
+            UserRole.ORGANIZER,
+            UpdateEventCommand(title="Updated"),
+        )
+
+        assert uow.events.lock_calls == 1
+
+    def test_capacity_update_resets_full_draft_inventory(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT, total_tickets=10)
+
+        updated = service.update(
+            event.id,
+            ORGANIZER_ID,
+            UserRole.ORGANIZER,
+            UpdateEventCommand(total_tickets=25),
+        )
+
+        assert (updated.total_tickets, updated.available_tickets) == (25, 25)
+
+    def test_capacity_update_rejects_inconsistent_reserved_draft(self, service, uow):
+        event = make_event(
+            uow,
+            ORGANIZER_ID,
+            status=EventStatus.DRAFT,
+            total_tickets=10,
+            available_tickets=8,
+        )
+
+        with pytest.raises(ConflictError):
+            service.update(
+                event.id,
+                ORGANIZER_ID,
+                UserRole.ORGANIZER,
+                UpdateEventCommand(total_tickets=20),
+            )
+
+    def test_another_organizer_cannot_update(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        with pytest.raises(ForbiddenError):
+            service.update(
+                event.id,
+                OTHER_ORGANIZER_ID,
+                UserRole.ORGANIZER,
+                UpdateEventCommand(title="Stolen"),
+            )
+
+    def test_plain_user_cannot_update(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        with pytest.raises(ForbiddenError):
+            service.update(
+                event.id,
+                ORGANIZER_ID,
+                UserRole.USER,
+                UpdateEventCommand(title="Not allowed"),
+            )
+
+    def test_admin_follows_existing_owner_bypass_without_changing_owner(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        updated = service.update(
+            event.id,
+            999,
+            UserRole.ADMIN,
+            UpdateEventCommand(title="Admin corrected title"),
+        )
+
+        assert updated.title == "Admin corrected title"
+        assert updated.organizer_id == ORGANIZER_ID
+
+    @pytest.mark.parametrize(
+        "event_status",
+        [EventStatus.PUBLISHED, EventStatus.CANCELLED, EventStatus.COMPLETED],
+    )
+    def test_non_draft_event_cannot_be_updated(self, service, uow, event_status):
+        event = make_event(uow, ORGANIZER_ID, status=event_status)
+
+        with pytest.raises(ConflictError):
+            service.update(
+                event.id,
+                ORGANIZER_ID,
+                UserRole.ORGANIZER,
+                UpdateEventCommand(title="Too late"),
+            )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            UpdateEventCommand(title="   "),
+            UpdateEventCommand(price=Decimal("-0.01")),
+            UpdateEventCommand(total_tickets=0),
+        ],
+    )
+    def test_invalid_title_price_and_capacity_are_rejected(self, service, uow, command):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        with pytest.raises(ValidationError):
+            service.update(event.id, ORGANIZER_ID, UserRole.ORGANIZER, command)
+
+    @pytest.mark.parametrize(
+        "server_field",
+        [{"organizer_id": 999}, {"status": EventStatus.PUBLISHED}],
+    )
+    def test_update_command_does_not_accept_owner_or_status(self, server_field):
+        with pytest.raises(TypeError):
+            UpdateEventCommand(**server_field)
+
+    def test_failed_update_does_not_commit_or_persist_partial_changes(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        with pytest.raises(ValidationError):
+            service.update(
+                event.id,
+                ORGANIZER_ID,
+                UserRole.ORGANIZER,
+                UpdateEventCommand(title="Changed before failure", price=Decimal("-1.00")),
+            )
+
+        persisted = uow.events.get_by_id(event.id)
+        assert persisted.title == event.title
+        assert persisted.price == event.price
+        assert uow.commits == 0
+
+    def test_invalid_combined_time_order_is_rejected(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        with pytest.raises(ValidationError):
+            service.update(
+                event.id,
+                ORGANIZER_ID,
+                UserRole.ORGANIZER,
+                UpdateEventCommand(end_time=event.start_time - timedelta(hours=1)),
+            )
+
+    def test_empty_update_is_rejected_without_lock_or_commit(self, service, uow):
+        event = make_event(uow, ORGANIZER_ID, status=EventStatus.DRAFT)
+
+        with pytest.raises(ValidationError):
+            service.update(
+                event.id,
+                ORGANIZER_ID,
+                UserRole.ORGANIZER,
+                UpdateEventCommand(),
+            )
+
+        assert uow.events.lock_calls == 0
+        assert uow.commits == 0
 
 
 class TestDelete:

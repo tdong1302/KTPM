@@ -30,6 +30,7 @@ const state = {
   organizerPage: 1,
   organizerTotalPages: 1,
   organizerStatus: "",
+  editingEvent: null,
 };
 
 let session;
@@ -49,6 +50,8 @@ const bookingList = select("#booking-list");
 const organizerEventList = select("#organizer-event-list");
 const eventDialog = select("#event-dialog");
 const eventDialogContent = select("#event-dialog-content");
+const eventEditDialog = select("#event-edit-dialog");
+const eventEditForm = select("#event-edit-form");
 const bookingDialog = select("#booking-dialog");
 const bookingDialogContent = select("#booking-dialog-content");
 
@@ -441,6 +444,12 @@ function organizerEventCard(event) {
   if (event.status === "DRAFT") {
     actions.append(
       element("button", {
+        className: "button button-secondary button-small",
+        text: "Chỉnh sửa",
+        attrs: { type: "button" },
+        dataset: { organizerAction: "edit", eventId: event.id },
+      }),
+      element("button", {
         className: "button button-primary button-small",
         text: "Phát hành",
         attrs: { type: "button" },
@@ -569,9 +578,101 @@ async function createEvent(submitEvent) {
   });
 }
 
+function fillEventEditForm(event) {
+  const values = {
+    title: event.title,
+    description: event.description,
+    category: event.category,
+    city: event.city,
+    location: event.location,
+    start_time: localDateTimeValue(new Date(event.start_time)),
+    end_time: localDateTimeValue(new Date(event.end_time)),
+    total_tickets: event.total_tickets,
+    price: event.price,
+  };
+  Object.entries(values).forEach(([name, value]) => {
+    eventEditForm.elements.namedItem(name).value = value;
+  });
+}
+
+async function openEventEditor(eventId) {
+  state.editingEvent = null;
+  eventEditForm.hidden = true;
+  eventEditForm.reset();
+  setFormMessage(eventEditForm);
+  const loading = select("#event-edit-loading");
+  loading.hidden = false;
+  loading.textContent = "Đang tải thông tin sự kiện…";
+  if (!eventEditDialog.open) eventEditDialog.showModal();
+  try {
+    const event = await api.get(`/api/events/${eventId}`, { auth: true });
+    if (!eventEditDialog.open) return;
+    if (event.status !== "DRAFT") {
+      throw new Error("Chỉ bản nháp mới có thể chỉnh sửa.");
+    }
+    state.editingEvent = event;
+    fillEventEditForm(event);
+    loading.hidden = true;
+    eventEditForm.hidden = false;
+    select("#edit-event-title").focus();
+  } catch (error) {
+    loading.textContent = error.message || "Không thể tải bản nháp để chỉnh sửa.";
+    await loadOrganizerEvents();
+  }
+}
+
+function eventEditPayload(form, original) {
+  const values = new FormData(form);
+  const payload = {};
+  ["title", "description", "category", "city", "location"].forEach((name) => {
+    const value = values.get(name).trim();
+    if (value !== original[name]) payload[name] = value;
+  });
+
+  ["start_time", "end_time"].forEach((name) => {
+    const formValue = values.get(name);
+    const originalValue = localDateTimeValue(new Date(original[name]));
+    if (formValue !== originalValue) payload[name] = new Date(formValue).toISOString();
+  });
+
+  const totalTickets = Number(values.get("total_tickets"));
+  if (totalTickets !== original.total_tickets) payload.total_tickets = totalTickets;
+  const price = values.get("price");
+  if (Number(price) !== Number(original.price)) payload.price = price;
+  return payload;
+}
+
+async function updateEvent(submitEvent) {
+  submitEvent.preventDefault();
+  const form = submitEvent.currentTarget;
+  if (!state.editingEvent) return;
+  await withPending(form, async () => {
+    setFormMessage(form);
+    try {
+      const eventId = state.editingEvent.id;
+      const payload = eventEditPayload(form, state.editingEvent);
+      if (!Object.keys(payload).length) {
+        setFormMessage(form, "Hãy thay đổi ít nhất một trường trước khi lưu.");
+        return;
+      }
+      const updated = await api.patch(`/api/events/${eventId}`, payload, { auth: true });
+      eventEditDialog.close();
+      state.editingEvent = null;
+      notify(`Đã cập nhật bản nháp #${updated.id}.`, "success");
+      await Promise.all([loadOrganizerEvents(), loadEvents()]);
+    } catch (error) {
+      setFormMessage(form, error.message);
+    }
+  });
+}
+
 async function organizerAction(action, eventId, button) {
   if (action === "view") {
     await openEvent(eventId);
+    return;
+  }
+  if (action === "edit") {
+    await openEventEditor(eventId);
     return;
   }
   if (action === "delete" && !window.confirm("Xóa vĩnh viễn bản nháp này?")) return;
@@ -747,6 +848,7 @@ function bindBookings() {
 
 function bindOrganizer() {
   select("#event-create-form").addEventListener("submit", createEvent);
+  eventEditForm.addEventListener("submit", updateEvent);
   select("#organizer-filter-form").addEventListener("submit", (submitEvent) => {
     submitEvent.preventDefault();
     state.organizerStatus = new FormData(submitEvent.currentTarget).get("status");
@@ -774,10 +876,15 @@ function bindDialogs() {
   selectAll("[data-close-dialog]").forEach((button) => {
     button.addEventListener("click", () => select(`#${button.dataset.closeDialog}`).close());
   });
-  [eventDialog, bookingDialog].forEach((dialog) => {
+  [eventDialog, eventEditDialog, bookingDialog].forEach((dialog) => {
     dialog.addEventListener("click", (clickEvent) => {
       if (clickEvent.target === dialog) dialog.close();
     });
+  });
+  eventEditDialog.addEventListener("close", () => {
+    state.editingEvent = null;
+    eventEditForm.reset();
+    setFormMessage(eventEditForm);
   });
 }
 
