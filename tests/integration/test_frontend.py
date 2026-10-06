@@ -90,3 +90,16 @@ def test_frontend_exposes_draft_editing_flow(client):
     assert 'organizerAction: "publish"' in application
     assert 'organizerAction: "delete"' in application
     assert '"/api/bookings"' in application
+
+
+def test_frontend_renders_completed_status_without_mutation_actions(client):
+    shell = client.get("/app/").text
+    application = client.get("/app/assets/app.js").text
+    ui = client.get("/app/assets/ui.js").text
+
+    assert '<option value="COMPLETED">' in shell
+    assert 'COMPLETED: "Đã kết thúc"' in ui
+    assert 'event.status === "COMPLETED"' not in application
+    assert 'else if (event.status === "PUBLISHED")' in application
+    assert "statusBadge(event.status" in application
+    assert 'event.status === "PUBLISHED" && !soldOut' in application

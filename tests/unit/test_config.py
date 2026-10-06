@@ -18,6 +18,8 @@ def test_local_environment_allows_documented_development_defaults() -> None:
 
     assert settings.environment == "local"
     assert settings.db_pool_size == 5
+    assert settings.event_completion_poll_seconds == 60
+    assert settings.event_completion_batch_size == 100
 
 
 def test_production_rejects_the_development_jwt_secret() -> None:
@@ -44,6 +46,10 @@ def test_production_accepts_a_private_jwt_secret() -> None:
         ("jwt_expires_minutes", 0),
         ("bcrypt_rounds", 3),
         ("bcrypt_rounds", 32),
+        ("event_completion_poll_seconds", 0),
+        ("event_completion_poll_seconds", 3601),
+        ("event_completion_batch_size", 0),
+        ("event_completion_batch_size", 1001),
     ],
 )
 def test_invalid_operational_limits_are_rejected(field: str, value: int) -> None:

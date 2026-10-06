@@ -1,3 +1,19 @@
+x-app-image: &app-image
+  build: .
+  image: eventhub-ktpm:local
+
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventhub}:${POSTGRES_PASSWORD:-eventhub-local-only}@postgres:5432/${POSTGRES_DB:-eventhub_ktpm}
+  DB_AUTO_CREATE: "false"
+  DB_POOL_SIZE: "5"
+  DB_MAX_OVERFLOW: "10"
+  JWT_SECRET: ${JWT_SECRET:-docker-local-secret-not-for-production-use}
+  JWT_EXPIRES_MINUTES: "1440"
+  BCRYPT_ROUNDS: "12"
+  EVENT_COMPLETION_POLL_SECONDS: ${EVENT_COMPLETION_POLL_SECONDS:-60}
+  EVENT_COMPLETION_BATCH_SIZE: ${EVENT_COMPLETION_BATCH_SIZE:-100}
+  ENVIRONMENT: docker
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -16,37 +32,32 @@ services:
       retries: 10
 
   migrate:
-    build: .
+    <<: *app-image
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventhub}:${POSTGRES_PASSWORD:-eventhub-local-only}@postgres:5432/${POSTGRES_DB:-eventhub_ktpm}
-      DB_AUTO_CREATE: "false"
-      DB_POOL_SIZE: "5"
-      DB_MAX_OVERFLOW: "10"
-      JWT_SECRET: ${JWT_SECRET:-docker-local-secret-not-for-production-use}
-      JWT_EXPIRES_MINUTES: "1440"
-      BCRYPT_ROUNDS: "12"
-      ENVIRONMENT: docker
+    environment: *app-environment
     command: ["python", "-m", "alembic", "upgrade", "head"]
 
   api:
-    build: .
+    <<: *app-image
     depends_on:
       migrate:
         condition: service_completed_successfully
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventhub}:${POSTGRES_PASSWORD:-eventhub-local-only}@postgres:5432/${POSTGRES_DB:-eventhub_ktpm}
-      DB_AUTO_CREATE: "false"
-      DB_POOL_SIZE: "5"
-      DB_MAX_OVERFLOW: "10"
-      JWT_SECRET: ${JWT_SECRET:-docker-local-secret-not-for-production-use}
-      JWT_EXPIRES_MINUTES: "1440"
-      BCRYPT_ROUNDS: "12"
-      ENVIRONMENT: docker
+    environment: *app-environment
     ports:
       - "${API_PORT:-8000}:8000"
+
+  worker:
+    <<: *app-image
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment: *app-environment
+    command: ["python", "-m", "app.workers.event_completion"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
 
   postgres-test:
     image: postgres:16-alpine

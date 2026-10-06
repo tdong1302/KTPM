@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.application.ports import EventQuery
-from app.domain.enums import BookingStatus
+from app.domain.enums import BookingStatus, EventStatus
 from app.domain.models import Booking, Event, User
 from app.infrastructure.db import mappers
 from app.infrastructure.db.orm import BookingRecord, EventRecord, UserRecord
@@ -75,6 +75,24 @@ class SqlAlchemyEventRepository:
             stmt = stmt.with_for_update()
         record = self._session.scalar(stmt)
         return mappers.event_to_domain(record) if record else None
+
+    def list_expired_published_for_update(self, *, now: datetime, limit: int) -> list[Event]:
+        stmt = (
+            select(EventRecord)
+            .where(
+                EventRecord.status == EventStatus.PUBLISHED.value,
+                EventRecord.end_time <= now,
+            )
+            .order_by(EventRecord.end_time.asc(), EventRecord.id.asc())
+            .limit(limit)
+        )
+        dialect = self._session.get_bind().dialect.name
+        if dialect == "postgresql":
+            stmt = stmt.with_for_update(skip_locked=True)
+        elif dialect != "sqlite":
+            stmt = stmt.with_for_update()
+        records = self._session.scalars(stmt).all()
+        return [mappers.event_to_domain(record) for record in records]
 
     def update(self, event: Event) -> Event:
         record = self._session.get(EventRecord, event.id)

@@ -198,8 +198,10 @@ payload không hợp lệ
 ### `PATCH /api/events/{id}/cancel` — 🔒 chủ sở hữu/ADMIN → `200`
 
 `DRAFT → CANCELLED` hoặc `PUBLISHED → CANCELLED`. `CANCELLED` và `COMPLETED` là trạng thái kết thúc.
-Baseline hiện chưa có endpoint hoặc background job chuyển một sự kiện sang `COMPLETED`; sự kiện đã
-qua `end_time` chỉ bị loại khỏi danh mục công khai và vẫn giữ status đã lưu.
+Không có endpoint hoàn tất công khai. Worker độc lập chuyển `PUBLISHED → COMPLETED` khi
+`end_time <= now`; chuyển sớm hoặc từ trạng thái khác bị domain từ chối. Event đã hoàn tất vẫn đọc
+được qua detail và `/api/events/mine`, nhưng bị loại khỏi catalogue công khai, không thể sửa hay
+đặt vé. OpenAPI vẫn giữ nguyên 16 operation.
 
 ### `DELETE /api/events/{id}` — 🔒 chủ sở hữu/ADMIN → `204`
 

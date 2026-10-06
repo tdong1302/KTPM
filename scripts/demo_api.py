@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -132,6 +134,44 @@ class DemoRun:
                 )
             )
 
+    def command(self, name: str, command: list[str], display_path: str) -> None:
+        started = time.perf_counter()
+        actual_status = -1
+        note = ""
+        passed = False
+        try:
+            process = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            actual_status = process.returncode
+            if process.returncode != 0:
+                raise DemoFailure(f"worker exited with code {process.returncode}")
+            note = "worker exited successfully; output intentionally omitted"
+            passed = True
+        except subprocess.TimeoutExpired as error:
+            note = "worker timed out"
+            raise DemoFailure(note) from error
+        except DemoFailure as error:
+            note = str(error)
+            raise
+        finally:
+            self.steps.append(
+                StepResult(
+                    name=name,
+                    method="WORKER",
+                    path=display_path,
+                    expected_status=0,
+                    actual_status=actual_status,
+                    passed=passed,
+                    duration_ms=round((time.perf_counter() - started) * 1000, 2),
+                    note=note,
+                )
+            )
+
 
 def _write_reports(
     output_dir: Path,
@@ -223,6 +263,11 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/demo"))
     parser.add_argument("--storage-label", default="configured application database")
+    parser.add_argument(
+        "--run-completion-worker",
+        action="store_true",
+        help="also demonstrate automatic event completion using the configured database",
+    )
     args = parser.parse_args()
 
     started_at = datetime.now(UTC)
@@ -324,6 +369,91 @@ def main() -> int:
             ),
         )
         buyer_token = buyer_login["access_token"]
+
+        if args.run_completion_worker:
+            completion_start = datetime.now(UTC) + timedelta(seconds=8)
+            completion_end = completion_start + timedelta(seconds=1)
+            completion_event = run.call(
+                "Create short completion event",
+                "POST",
+                "/api/events",
+                201,
+                payload={
+                    "title": f"Completion Demo {suffix}",
+                    "description": "Short event completed by the standalone worker",
+                    "category": "demo",
+                    "city": "Hanoi",
+                    "location": "Completion Hall",
+                    "start_time": completion_start.isoformat(),
+                    "end_time": completion_end.isoformat(),
+                    "total_tickets": 5,
+                    "price": "10000.00",
+                },
+                token=organizer_token,
+            )
+            completion_event_id = completion_event["id"]
+            run.call(
+                "Publish short completion event",
+                "PATCH",
+                f"/api/events/{completion_event_id}/publish",
+                200,
+                token=organizer_token,
+            )
+            remaining = completion_end.timestamp() - datetime.now(UTC).timestamp() + 0.25
+            if remaining > 0:
+                time.sleep(remaining)
+            run.command(
+                "Run completion worker once",
+                [sys.executable, "-m", "app.workers.event_completion", "--once"],
+                "python -m app.workers.event_completion --once",
+            )
+            run.call(
+                "Completed event is readable",
+                "GET",
+                f"/api/events/{completion_event_id}",
+                200,
+                validate=lambda body: _require(
+                    body["status"] == "COMPLETED", "worker persisted COMPLETED status"
+                ),
+            )
+            run.call(
+                "Completed event leaves public catalogue",
+                "GET",
+                f"/api/events?q=Completion+Demo+{suffix}",
+                200,
+                validate=lambda body: _require(
+                    body["total"] == 0, "completed event is absent from public discovery"
+                ),
+            )
+            run.call(
+                "Organizer dashboard includes completed event",
+                "GET",
+                "/api/events/mine?page=1&size=20&status=COMPLETED",
+                200,
+                token=organizer_token,
+                validate=lambda body: _require(
+                    any(item["id"] == completion_event_id for item in body["items"]),
+                    "completed event remains in organizer history",
+                ),
+            )
+            run.call(
+                "Reject booking completed event",
+                "POST",
+                "/api/bookings",
+                409,
+                payload={"event_id": completion_event_id, "quantity": 1},
+                token=buyer_token,
+            )
+            run.call(
+                "Reject editing completed event",
+                "PATCH",
+                f"/api/events/{completion_event_id}",
+                409,
+                payload={"title": "Too late"},
+                token=organizer_token,
+            )
+            summary["completion_event_id"] = completion_event_id
+            summary["completion_event_status"] = "COMPLETED"
 
         start = datetime.now(UTC) + timedelta(days=30)
         event_payload = {

@@ -83,6 +83,9 @@ class EventRepository(Protocol):
         reservations); the adapter decides how, e.g. ``SELECT ... FOR UPDATE``.
         """
 
+    def list_expired_published_for_update(self, *, now: datetime, limit: int) -> list[Event]:
+        """Claim an ordered batch of ended published events for this transaction."""
+
     def update(self, event: Event) -> Event: ...
 
     def delete(self, event_id: int) -> None: ...

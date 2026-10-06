@@ -74,6 +74,7 @@ class EventRecord(Base):
         # Serves the public catalogue query: status = PUBLISHED AND end_time > now
         # ordered by start_time.
         Index("ix_events_status_start_time", "status", "start_time"),
+        Index("ix_events_status_end_time_id", "status", "end_time", "id"),
         Index("ix_events_organizer_id", "organizer_id"),
     )
 

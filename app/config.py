@@ -29,6 +29,9 @@ class Settings(BaseSettings):
 
     bcrypt_rounds: int = Field(default=12, ge=4, le=31)
 
+    event_completion_poll_seconds: float = Field(default=60, gt=0, le=3600)
+    event_completion_batch_size: int = Field(default=100, ge=1, le=1000)
+
     @model_validator(mode="after")
     def reject_insecure_production_secret(self) -> "Settings":
         if self.environment.strip().lower() in {"prod", "production"}:

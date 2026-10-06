@@ -79,6 +79,7 @@ class FakeEventRepository:
         self.rows: dict[int, Event] = {}
         self._next_id = 1
         self.lock_calls = 0
+        self.completion_query_calls: list[tuple[datetime, int]] = []
         self.search_calls: list[tuple[EventQuery, int, int]] = []
 
     def add(self, event: Event) -> Event:
@@ -94,6 +95,16 @@ class FakeEventRepository:
     def get_for_update(self, event_id: int) -> Event | None:
         self.lock_calls += 1
         return self.get_by_id(event_id)
+
+    def list_expired_published_for_update(self, *, now: datetime, limit: int) -> list[Event]:
+        self.completion_query_calls.append((now, limit))
+        items = [
+            event
+            for event in self.rows.values()
+            if event.status == EventStatus.PUBLISHED and event.end_time <= now
+        ]
+        items.sort(key=lambda event: (event.end_time, event.id or 0))
+        return [replace(event) for event in items[:limit]]
 
     def update(self, event: Event) -> Event:
         self.rows[event.id] = replace(event)
@@ -196,6 +207,7 @@ def make_event(
     total_tickets: int = 100,
     available_tickets: int | None = None,
     start_time: datetime | None = None,
+    end_time: datetime | None = None,
     price: str = "50.00",
 ) -> Event:
     from decimal import Decimal
@@ -209,7 +221,7 @@ def make_event(
             city="Hanoi",
             location="Main Hall",
             start_time=start,
-            end_time=start + timedelta(hours=3),
+            end_time=end_time or start + timedelta(hours=3),
             total_tickets=total_tickets,
             available_tickets=available_tickets,
             price=Decimal(price),

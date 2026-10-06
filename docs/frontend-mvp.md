@@ -89,6 +89,10 @@ Frontend không lưu danh sách event ID trong trình duyệt. Owner ID được
 từ query hoặc trạng thái phía client. Nút chỉnh sửa chỉ xuất hiện trên `DRAFT`; backend vẫn là nơi
 quyết định cuối cùng nếu trạng thái thay đổi đồng thời.
 
+Khi worker nền đổi event sang `COMPLETED`, dashboard organizer hiển thị nhãn **Đã kết thúc** và có
+thể lọc theo trạng thái này. Card không hiện nút sửa/phát hành/huỷ; detail vẫn đọc được. Catalogue
+công khai tự loại event và form đặt vé không còn xuất hiện vì frontend luôn render từ status API.
+
 ## 7. Xác thực và token
 
 - JWT chỉ được lưu trong `sessionStorage`, không dùng `localStorage`.
