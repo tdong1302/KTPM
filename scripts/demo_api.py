@@ -347,6 +347,17 @@ def main() -> int:
             validate=lambda body: _require(body["status"] == "DRAFT", "event status is DRAFT"),
         )
         event_id = event["id"]
+        run.call(
+            "Organizer dashboard lists the new draft",
+            "GET",
+            "/api/events/mine?page=1&size=20&status=DRAFT",
+            200,
+            token=organizer_token,
+            validate=lambda body: _require(
+                any(item["id"] == event_id for item in body["items"]),
+                "owned draft appears without manually entering its ID",
+            ),
+        )
         run.call("Draft is hidden from public", "GET", f"/api/events/{event_id}", 404)
         run.call(
             "Buyer cannot publish event",

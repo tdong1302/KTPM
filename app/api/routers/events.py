@@ -11,6 +11,7 @@ from app.api.schemas.common import ErrorResponse, PageResponse
 from app.api.schemas.events import CreateEventRequest, EventResponse
 from app.application.event_service import CreateEventCommand
 from app.application.ports import EventQuery
+from app.domain.enums import EventStatus
 from app.domain.models import Event
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -64,6 +65,38 @@ def list_events(
     )
     return PageResponse[EventResponse](
         items=[to_event_response(e) for e in result.items],
+        total=result.total,
+        page=result.page,
+        size=result.size,
+        total_pages=result.total_pages,
+    )
+
+
+@router.get(
+    "/mine",
+    response_model=PageResponse[EventResponse],
+    summary="List events owned by the current ORGANIZER or ADMIN",
+    responses={
+        **UNAUTHORIZED,
+        403: {"model": ErrorResponse, "description": "Role cannot organize"},
+    },
+)
+def list_my_events(
+    service: EventServiceDep,
+    principal: CurrentUser,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    event_status: EventStatus | None = Query(default=None, alias="status"),
+) -> PageResponse[EventResponse]:
+    result = service.list_mine(
+        actor_id=principal.user_id,
+        actor_role=principal.role,
+        page=page,
+        size=size,
+        event_status=event_status,
+    )
+    return PageResponse[EventResponse](
+        items=[to_event_response(event) for event in result.items],
         total=result.total,
         page=result.page,
         size=result.size,

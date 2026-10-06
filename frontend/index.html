@@ -390,27 +390,45 @@
               <button class="button button-primary" type="submit">Lưu bản nháp</button>
             </form>
 
-            <aside class="surface session-events">
+            <aside class="surface organizer-dashboard">
               <div class="surface-heading compact">
                 <span class="step-number" aria-hidden="true">02</span>
                 <div>
-                  <h2>Sự kiện trong phiên</h2>
-                  <p class="muted">Quản lý sự kiện vừa tạo hoặc tải lại bằng ID.</p>
+                  <h2>Sự kiện của tôi</h2>
+                  <p class="muted">Toàn bộ sự kiện thuộc tài khoản nhà tổ chức hiện tại.</p>
                 </div>
               </div>
-              <form id="organizer-load-form" class="inline-form">
+              <form id="organizer-filter-form" class="organizer-toolbar">
                 <div class="field">
-                  <label for="organizer-event-id">ID sự kiện</label>
-                  <input id="organizer-event-id" name="event_id" type="number" min="1" required />
+                  <label for="organizer-status-filter">Trạng thái</label>
+                  <select id="organizer-status-filter" name="status">
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="DRAFT">Bản nháp</option>
+                    <option value="PUBLISHED">Đang mở bán</option>
+                    <option value="CANCELLED">Đã hủy</option>
+                    <option value="COMPLETED">Đã kết thúc</option>
+                  </select>
                 </div>
-                <button class="button button-secondary" type="submit">Tải sự kiện</button>
+                <button class="button button-secondary" type="submit">Lọc</button>
+                <button id="refresh-organizer-events" class="button button-ghost" type="button">
+                  Làm mới
+                </button>
               </form>
-              <p class="limitation-note">
-                API hiện chưa có endpoint liệt kê toàn bộ sự kiện của nhà tổ chức. EventHub chỉ giữ
-                các ID bạn vừa tạo hoặc tải trong phiên trình duyệt này.
-              </p>
-              <p class="form-message" id="organizer-message" aria-live="polite"></p>
-              <div id="organizer-event-list" class="organizer-event-list"></div>
+              <p id="organizer-summary" class="muted" aria-live="polite"></p>
+              <div
+                id="organizer-event-list"
+                class="organizer-event-list"
+                aria-busy="false"
+              ></div>
+              <nav class="pagination" aria-label="Phân trang sự kiện của tôi">
+                <button id="organizer-previous" class="button button-ghost" type="button">
+                  Trang trước
+                </button>
+                <span id="organizer-page-label" aria-live="polite">Trang 1</span>
+                <button id="organizer-next" class="button button-ghost" type="button">
+                  Trang sau
+                </button>
+              </nav>
             </aside>
           </div>
         </section>

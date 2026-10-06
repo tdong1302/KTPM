@@ -1,4 +1,4 @@
-import { ApiClient, ApiError } from "./api.js";
+import { ApiClient } from "./api.js";
 import { AuthSession } from "./auth.js";
 import {
   dateParts,
@@ -26,7 +26,10 @@ const state = {
   bookings: [],
   bookingPage: 1,
   bookingTotalPages: 1,
-  organizerEvents: new Map(),
+  organizerEvents: [],
+  organizerPage: 1,
+  organizerTotalPages: 1,
+  organizerStatus: "",
 };
 
 let session;
@@ -68,7 +71,7 @@ function showView(name) {
   });
 
   if (name === "bookings") loadBookings();
-  if (name === "organizer") loadTrackedOrganizerEvents();
+  if (name === "organizer") loadOrganizerEvents();
   select("#main-content").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -91,7 +94,12 @@ function updateAuthenticationUI(user) {
     select("#account-avatar").textContent = initials(user.full_name);
   } else {
     state.bookings = [];
-    state.organizerEvents.clear();
+    state.organizerEvents = [];
+    state.organizerPage = 1;
+    state.organizerTotalPages = 1;
+    state.organizerStatus = "";
+    select("#organizer-status-filter").value = "";
+    select("#organizer-summary").textContent = "";
     renderBookings();
     renderOrganizerEvents();
   }
@@ -420,30 +428,6 @@ async function cancelBooking(bookingId, eventId, button) {
   }
 }
 
-function organizerStorageKey() {
-  return session.user ? `eventhub.organizer-events.${session.user.id}` : "";
-}
-
-function readOrganizerIds() {
-  try {
-    const value = JSON.parse(sessionStorage.getItem(organizerStorageKey()) || "[]");
-    return Array.isArray(value) ? value.filter(Number.isInteger) : [];
-  } catch (_error) {
-    return [];
-  }
-}
-
-function persistOrganizerIds() {
-  try {
-    sessionStorage.setItem(
-      organizerStorageKey(),
-      JSON.stringify([...state.organizerEvents.keys()]),
-    );
-  } catch (_error) {
-    // The current in-memory session remains usable.
-  }
-}
-
 function organizerEventCard(event) {
   const actions = element("div", { className: "organizer-actions" });
   actions.append(
@@ -490,9 +474,14 @@ function organizerEventCard(event) {
     element("header", {}, [
       element("div", {}, [
         element("h3", { text: event.title }),
-        element("p", { text: `#${event.id} · ${formatDate(event.start_time)}` }),
+        element("p", { text: `Mã sự kiện #${event.id}` }),
       ]),
       statusBadge(event.status),
+    ]),
+    element("div", { className: "organizer-event-facts" }, [
+      detailItem("Bắt đầu", formatDate(event.start_time)),
+      detailItem("Giá vé", formatNumber(event.price)),
+      detailItem("Vé còn lại", `${event.available_tickets}/${event.total_tickets}`),
     ]),
     actions,
   ]);
@@ -500,40 +489,51 @@ function organizerEventCard(event) {
 
 function renderOrganizerEvents() {
   organizerEventList.replaceChildren();
-  const events = [...state.organizerEvents.values()].sort((a, b) => b.id - a.id);
-  if (!events.length) {
+  organizerEventList.setAttribute("aria-busy", "false");
+  if (!state.organizerEvents.length) {
     organizerEventList.append(
-      emptyState("Chưa có sự kiện trong phiên", "Tạo bản nháp mới hoặc tải sự kiện bằng ID."),
+      emptyState(
+        state.organizerStatus ? "Không có sự kiện ở trạng thái này" : "Bạn chưa có sự kiện",
+        state.organizerStatus
+          ? "Chọn trạng thái khác để xem toàn bộ sự kiện của bạn."
+          : "Tạo bản nháp đầu tiên bằng biểu mẫu bên cạnh.",
+      ),
     );
   } else {
-    organizerEventList.append(...events.map(organizerEventCard));
+    organizerEventList.append(...state.organizerEvents.map(organizerEventCard));
   }
+  select("#organizer-page-label").textContent =
+    `Trang ${state.organizerPage} / ${state.organizerTotalPages}`;
+  select("#organizer-previous").disabled = state.organizerPage <= 1;
+  select("#organizer-next").disabled = state.organizerPage >= state.organizerTotalPages;
 }
 
-async function loadOrganizerEvent(eventId, { quiet = false } = {}) {
-  const event = await api.get(`/api/events/${eventId}`, { auth: true });
-  if (event.organizer_id !== session.user?.id) {
-    throw new ApiError("Sự kiện này không thuộc tài khoản nhà tổ chức hiện tại.", { status: 403 });
-  }
-  state.organizerEvents.set(event.id, event);
-  persistOrganizerIds();
-  renderOrganizerEvents();
-  if (!quiet) notify(`Đã tải sự kiện #${event.id}.`, "success");
-  return event;
-}
-
-async function loadTrackedOrganizerEvents() {
+async function loadOrganizerEvents() {
   if (session.user?.role !== "ORGANIZER") return;
-  const ids = readOrganizerIds();
-  if (!ids.length) {
+  select("#organizer-summary").textContent = "";
+  organizerEventList.setAttribute("aria-busy", "true");
+  organizerEventList.replaceChildren(loadingState("Đang tải sự kiện của bạn…"));
+  try {
+    const result = await api.get("/api/events/mine", {
+      auth: true,
+      query: {
+        page: state.organizerPage,
+        size: 8,
+        status: state.organizerStatus,
+      },
+    });
+    state.organizerEvents = result.items;
+    state.organizerPage = result.page;
+    state.organizerTotalPages = Math.max(1, result.total_pages);
+    select("#organizer-summary").textContent = `${result.total} sự kiện thuộc tài khoản của bạn.`;
     renderOrganizerEvents();
-    return;
+  } catch (error) {
+    organizerEventList.setAttribute("aria-busy", "false");
+    organizerEventList.replaceChildren(
+      emptyState("Không thể tải bảng điều khiển", error.message || "Vui lòng thử lại sau."),
+    );
+    notify(error.message, "error");
   }
-  const results = await Promise.allSettled(ids.map((id) => loadOrganizerEvent(id, { quiet: true })));
-  const missingIds = ids.filter((_, index) => results[index].status === "rejected");
-  missingIds.forEach((id) => state.organizerEvents.delete(id));
-  persistOrganizerIds();
-  renderOrganizerEvents();
 }
 
 async function createEvent(submitEvent) {
@@ -555,11 +555,12 @@ async function createEvent(submitEvent) {
         price: values.get("price"),
       };
       const event = await api.post("/api/events", payload, { auth: true });
-      state.organizerEvents.set(event.id, event);
-      persistOrganizerIds();
-      renderOrganizerEvents();
       form.reset();
       setDefaultEventDates();
+      state.organizerPage = 1;
+      state.organizerStatus = "";
+      select("#organizer-status-filter").value = "";
+      await loadOrganizerEvents();
       setFormMessage(form, `Đã tạo bản nháp #${event.id}.`, "success");
       notify("Bản nháp đã được tạo. Kiểm tra trước khi phát hành.", "success");
     } catch (error) {
@@ -576,23 +577,27 @@ async function organizerAction(action, eventId, button) {
   if (action === "delete" && !window.confirm("Xóa vĩnh viễn bản nháp này?")) return;
   if (action === "cancel" && !window.confirm("Hủy sự kiện này? Trạng thái này không thể hoàn tác.")) return;
 
-  button.disabled = true;
+  const actionButtons = selectAll("button", button.closest(".organizer-event-card"));
+  actionButtons.forEach((actionButton) => {
+    actionButton.disabled = true;
+  });
   try {
     if (action === "delete") {
       await api.delete(`/api/events/${eventId}`, { auth: true });
-      state.organizerEvents.delete(eventId);
+      if (state.organizerEvents.length === 1 && state.organizerPage > 1) {
+        state.organizerPage -= 1;
+      }
       notify("Đã xóa bản nháp.", "success");
     } else {
-      const event = await api.patch(`/api/events/${eventId}/${action}`, undefined, { auth: true });
-      state.organizerEvents.set(event.id, event);
+      await api.patch(`/api/events/${eventId}/${action}`, undefined, { auth: true });
       notify(action === "publish" ? "Sự kiện đã được phát hành." : "Sự kiện đã được hủy.", "success");
     }
-    persistOrganizerIds();
-    renderOrganizerEvents();
-    await loadEvents();
+    await Promise.all([loadOrganizerEvents(), loadEvents()]);
   } catch (error) {
     notify(error.message, "error");
-    button.disabled = false;
+    actionButtons.forEach((actionButton) => {
+      actionButton.disabled = false;
+    });
   }
 }
 
@@ -742,19 +747,20 @@ function bindBookings() {
 
 function bindOrganizer() {
   select("#event-create-form").addEventListener("submit", createEvent);
-  select("#organizer-load-form").addEventListener("submit", async (submitEvent) => {
+  select("#organizer-filter-form").addEventListener("submit", (submitEvent) => {
     submitEvent.preventDefault();
-    const form = submitEvent.currentTarget;
-    const message = select("#organizer-message");
-    message.textContent = "";
-    await withPending(form, async () => {
-      try {
-        await loadOrganizerEvent(Number(new FormData(form).get("event_id")));
-        form.reset();
-      } catch (error) {
-        message.textContent = error.message;
-      }
-    });
+    state.organizerStatus = new FormData(submitEvent.currentTarget).get("status");
+    state.organizerPage = 1;
+    loadOrganizerEvents();
+  });
+  select("#refresh-organizer-events").addEventListener("click", loadOrganizerEvents);
+  select("#organizer-previous").addEventListener("click", () => {
+    state.organizerPage = Math.max(1, state.organizerPage - 1);
+    loadOrganizerEvents();
+  });
+  select("#organizer-next").addEventListener("click", () => {
+    state.organizerPage += 1;
+    loadOrganizerEvents();
   });
   organizerEventList.addEventListener("click", (clickEvent) => {
     const button = clickEvent.target.closest("[data-organizer-action]");

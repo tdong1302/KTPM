@@ -118,6 +118,22 @@ Chỉ trả về sự kiện **đã phát hành và chưa kết thúc**.
 `sort_by` ngoài danh sách cho phép sẽ bị từ chối ở `422` — tên cột không bao giờ đi thẳng xuống
 tầng dữ liệu.
 
+### `GET /api/events/mine` — 🔒 **ORGANIZER** → `200`
+
+Trả về toàn bộ sự kiện thuộc tài khoản organizer trong token, gồm `DRAFT`, `PUBLISHED`,
+`CANCELLED` và `COMPLETED`. Organizer ID luôn được lấy từ JWT đã xác thực; endpoint không nhận owner
+ID từ client.
+
+| Query param | Mặc định | Ghi chú |
+|---|---|---|
+| `page` | `1` | ≥ 1 |
+| `size` | `20` | 1–100 |
+| `status` | – | Tuỳ chọn: `DRAFT` \| `PUBLISHED` \| `CANCELLED` \| `COMPLETED` |
+
+Kết quả dùng envelope phân trang chuẩn và được sắp xếp theo `created_at` mới nhất trước, với ID làm
+điểm phân định ổn định. `ADMIN` giữ chính sách tổ chức hiện có nhưng cũng chỉ nhận sự kiện mang ID
+của chính tài khoản admin; `USER` trả `403`, không có token trả `401`.
+
 ### `GET /api/events/{id}` — công khai → `200`
 
 Sự kiện `DRAFT` hoặc `CANCELLED` chỉ hiển thị với chủ sở hữu và `ADMIN`; với người khác trả `404`

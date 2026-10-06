@@ -87,6 +87,7 @@ Chi tiết: [docs/architecture.md](docs/architecture.md).
 | POST | `/api/auth/login` | – | Đăng nhập, trả access token |
 | GET | `/api/auth/me` | ✅ | **GET cần xác thực** |
 | GET | `/api/events` | – | Danh sách sự kiện đã phát hành |
+| GET | `/api/events/mine` | ✅ | Sự kiện thuộc ORGANIZER hiện tại |
 | GET | `/api/events/{id}` | – | Chi tiết sự kiện |
 | POST | `/api/events` | ✅ | **POST cần xác thực** (ORGANIZER/ADMIN) |
 | PATCH | `/api/events/{id}/publish` | ✅ | Phát hành sự kiện |
@@ -260,9 +261,9 @@ Bảng ghi kết quả: [docs/benchmark.md](docs/benchmark.md).
 ## 11. Trạng thái hiện tại
 
 Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
-tự động bằng AST, 14 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
+tự động bằng AST, 15 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
 frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate frontend gần nhất thu được
-**174/174 test pass**, gồm **5/5 PostgreSQL concurrency test**, với coverage **97,73%**. Đã chạy load test thật
+**189/189 test pass**, gồm **5/5 PostgreSQL concurrency test**, với coverage **97,86%**. Đã chạy load test thật
 trên Kaggle CPU cho hai kịch bản S2 (baseline throughput) và S3 (tranh chấp ghi) — số liệu và phân
 tích ở [docs/benchmark.md](docs/benchmark.md).
 
