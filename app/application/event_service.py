@@ -32,6 +32,23 @@ class CreateEventCommand:
     price: Decimal
 
 
+@dataclass(frozen=True)
+class UpdateEventCommand:
+    title: str | None = None
+    description: str | None = None
+    category: str | None = None
+    city: str | None = None
+    location: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    total_tickets: int | None = None
+    price: Decimal | None = None
+
+    @property
+    def has_changes(self) -> bool:
+        return any(value is not None for value in self.__dict__.values())
+
+
 def normalise_paging(page: int, size: int) -> tuple[int, int]:
     page = max(1, page)
     size = min(max(1, size), MAX_PAGE_SIZE)
@@ -122,6 +139,26 @@ class EventService:
 
     def publish(self, event_id: int, actor_id: int, actor_role: UserRole) -> Event:
         return self._transition(event_id, actor_id, actor_role, EventStatus.PUBLISHED)
+
+    def update(
+        self,
+        event_id: int,
+        actor_id: int,
+        actor_role: UserRole,
+        command: UpdateEventCommand,
+    ) -> Event:
+        if not actor_role.can_organize:
+            raise ForbiddenError("only ORGANIZER or ADMIN can edit events")
+        if not command.has_changes:
+            raise ValidationError("at least one editable field is required")
+
+        with self._uow as uow:
+            event = self._require_event_for_update(uow, event_id)
+            self._require_owner_or_admin(event, actor_id, actor_role)
+            event.edit_draft(self._clock.now(), **command.__dict__)
+            updated = uow.events.update(event)
+            uow.commit()
+            return updated
 
     def cancel(self, event_id: int, actor_id: int, actor_role: UserRole) -> Event:
         return self._transition(event_id, actor_id, actor_role, EventStatus.CANCELLED)

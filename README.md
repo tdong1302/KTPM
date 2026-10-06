@@ -33,7 +33,7 @@ cho môn Kiến trúc/Kỹ thuật phần mềm.
 ### Chức năng của hệ thống
 
 - Đăng ký, đăng nhập (JWT), xem tài khoản hiện tại.
-- Tạo / phát hành / huỷ / xoá sự kiện. Domain có trạng thái `COMPLETED`, nhưng baseline hiện chưa
+- Tạo / chỉnh sửa bản nháp / phát hành / huỷ / xoá sự kiện. Domain có trạng thái `COMPLETED`, nhưng baseline hiện chưa
   có endpoint hoặc background job chuyển sự kiện sang trạng thái này.
 - Tra cứu sự kiện công khai: tìm kiếm, lọc, phân trang, sắp xếp.
 - Đặt vé (trừ tồn kho có khoá dòng), xem vé của mình, huỷ vé (hoàn tồn kho).
@@ -90,6 +90,7 @@ Chi tiết: [docs/architecture.md](docs/architecture.md).
 | GET | `/api/events/mine` | ✅ | Sự kiện thuộc ORGANIZER hiện tại |
 | GET | `/api/events/{id}` | – | Chi tiết sự kiện |
 | POST | `/api/events` | ✅ | **POST cần xác thực** (ORGANIZER/ADMIN) |
+| PATCH | `/api/events/{id}` | ✅ | Chỉnh sửa một phần sự kiện `DRAFT` của chủ sở hữu |
 | PATCH | `/api/events/{id}/publish` | ✅ | Phát hành sự kiện |
 | PATCH | `/api/events/{id}/cancel` | ✅ | Huỷ sự kiện |
 | DELETE | `/api/events/{id}` | ✅ | **DELETE** – xoá sự kiện nháp |
@@ -261,9 +262,9 @@ Bảng ghi kết quả: [docs/benchmark.md](docs/benchmark.md).
 ## 11. Trạng thái hiện tại
 
 Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
-tự động bằng AST, 15 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
-frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate frontend gần nhất thu được
-**189/189 test pass**, gồm **5/5 PostgreSQL concurrency test**, với coverage **97,86%**. Đã chạy load test thật
+tự động bằng AST, 16 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
+frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate event-editing gần nhất thu được
+**227/227 test pass**, gồm **6/6 PostgreSQL concurrency test**, với coverage **98,09%**. Đã chạy load test thật
 trên Kaggle CPU cho hai kịch bản S2 (baseline throughput) và S3 (tranh chấp ghi) — số liệu và phân
 tích ở [docs/benchmark.md](docs/benchmark.md).
 

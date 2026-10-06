@@ -3,7 +3,7 @@
 ## 1. Mục đích và phạm vi
 
 Frontend MVP là giao diện tiếng Việt dành cho người dùng cuối của EventHub. Mục tiêu là trình diễn
-trực quan các luồng REST API đã có: đăng ký, đăng nhập, khám phá sự kiện, tạo/phát hành sự kiện,
+trực quan các luồng REST API đã có: đăng ký, đăng nhập, khám phá sự kiện, tạo/chỉnh sửa/phát hành sự kiện,
 đặt vé và hủy vé. Frontend không bổ sung quy tắc nghiệp vụ hoặc endpoint mới.
 
 Giao diện được phục vụ cùng nguồn với FastAPI tại:
@@ -36,7 +36,7 @@ transaction vẫn do backend quyết định.
 resolve từ vị trí source, không phụ thuộc thư mục hiện tại của terminal. Middleware cho phép GET và
 HEAD dưới `/app`, trong khi chính sách xác thực của `/api/...` không thay đổi.
 
-Static mount không xuất hiện trong OpenAPI; API có 15 operation nghiệp vụ. Không cần CORS vì
+Static mount không xuất hiện trong OpenAPI; API có 16 operation nghiệp vụ. Không cần CORS vì
 HTML, JavaScript và API cùng origin. Docker image copy đúng thư mục `frontend`, không chia sẻ phần
 còn lại của repository.
 
@@ -80,12 +80,14 @@ Frontend dùng validation HTML để phản hồi sớm, nhưng kết quả back
 2. Tạo sự kiện; API trả về bản nháp `DRAFT`.
 3. Bảng **Sự kiện của tôi** gọi `GET /api/events/mine` và hiển thị toàn bộ sự kiện thuộc tài khoản.
 4. Lọc theo trạng thái, chuyển trang, làm mới hoặc mở chi tiết sự kiện.
-5. Phát hành bản nháp đủ điều kiện, hủy sự kiện hợp lệ, hoặc xóa bản nháp hợp lệ; danh sách được
+5. Chọn **Chỉnh sửa** trên một `DRAFT`; dialog tải dữ liệu mới nhất, cho sửa các trường sự kiện và
+   gửi `PATCH /api/events/{id}` chỉ với những giá trị đã thay đổi.
+6. Phát hành bản nháp đủ điều kiện, hủy sự kiện hợp lệ, hoặc xóa bản nháp hợp lệ; danh sách được
    tải lại sau mỗi thao tác.
 
 Frontend không lưu danh sách event ID trong trình duyệt. Owner ID được backend lấy từ JWT, không lấy
-từ query hoặc trạng thái phía client. Frontend vẫn không có chỉnh sửa sự kiện vì API không có
-endpoint update.
+từ query hoặc trạng thái phía client. Nút chỉnh sửa chỉ xuất hiện trên `DRAFT`; backend vẫn là nơi
+quyết định cuối cùng nếu trạng thái thay đổi đồng thời.
 
 ## 7. Xác thực và token
 
@@ -125,7 +127,7 @@ uv run --frozen ruff format --check .
 uv run --frozen pytest -ra
 ```
 
-Chạy toàn bộ suite và bắt buộc năm concurrency test trên database disposable:
+Chạy toàn bộ suite và bắt buộc các concurrency test trên database disposable:
 
 ```cmd
 scripts\run-tests.cmd --with-db --junitxml=test-results.xml --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=95
@@ -136,7 +138,6 @@ Test delivery kiểm tra HTML shell, MIME type của CSS/JavaScript, route API/d
 
 ## 11. Giới hạn do API hiện tại
 
-- Không có endpoint chỉnh sửa sự kiện.
 - Không có API chuyển sự kiện sang `COMPLETED`.
 - Không có danh sách/search booking toàn hệ thống cho `ADMIN`.
 - Danh mục chỉ trả sự kiện đã phát hành và chưa kết thúc; draft/cancelled không hiển thị công khai.
@@ -153,8 +154,9 @@ framework, Node build pipeline, async SQLAlchemy, cache/Redis và tối ưu Phas
 1. Mở `/app/`, thử tìm kiếm và responsive mobile width.
 2. Đăng ký `ORGANIZER`, chỉ ra thông tin `/me` ở header.
 3. Tạo draft và chỉ ra sự kiện tự xuất hiện trong **Sự kiện của tôi**, không cần nhập ID.
-4. Lọc trạng thái `DRAFT`, phát hành sự kiện và quan sát dashboard tự làm mới.
-5. Đăng xuất; đăng ký `USER` và xác nhận không có control tổ chức.
-6. Mở event, đặt hai vé và chỉ ra inventory giảm.
-7. Mở **Vé của tôi**, xem chi tiết và hủy; quay lại event để thấy inventory phục hồi.
-8. Thử mật khẩu sai để minh họa lỗi inline; đăng xuất để xác nhận UI bảo vệ được xóa.
+4. Mở **Chỉnh sửa**, đổi tiêu đề/địa điểm, lưu và quan sát card được tải lại.
+5. Lọc trạng thái `DRAFT`, phát hành sự kiện và xác nhận nút chỉnh sửa biến mất.
+6. Đăng xuất; đăng ký `USER` và xác nhận không có control tổ chức.
+7. Mở event, đặt hai vé và chỉ ra inventory giảm.
+8. Mở **Vé của tôi**, xem chi tiết và hủy; quay lại event để thấy inventory phục hồi.
+9. Thử mật khẩu sai để minh họa lỗi inline; đăng xuất để xác nhận UI bảo vệ được xóa.

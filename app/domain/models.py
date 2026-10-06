@@ -105,6 +105,51 @@ class Event:
         if self.start_time <= now:
             raise ValidationError("start_time must be in the future when publishing")
 
+    def edit_draft(
+        self,
+        now: datetime,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+        category: str | None = None,
+        city: str | None = None,
+        location: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        total_tickets: int | None = None,
+        price: Decimal | None = None,
+    ) -> None:
+        """Apply an allowed partial edit while preserving draft invariants."""
+        if self.status != EventStatus.DRAFT:
+            raise ConflictError("only DRAFT events can be edited")
+
+        text_updates = {
+            "title": title,
+            "description": description,
+            "category": category,
+            "city": city,
+            "location": location,
+        }
+        for name, value in text_updates.items():
+            if value is not None:
+                setattr(self, name, value.strip())
+        if start_time is not None:
+            self.start_time = start_time
+        if end_time is not None:
+            self.end_time = end_time
+        if price is not None:
+            self.price = price
+        if total_tickets is not None and total_tickets != self.total_tickets:
+            if self.reserved_tickets > 0:
+                raise ConflictError("event capacity cannot change after tickets are reserved")
+            self.total_tickets = total_tickets
+            self.available_tickets = total_tickets
+
+        self.validate_basics()
+        if self.start_time <= now:
+            raise ValidationError("start_time must be in the future")
+        self.updated_at = now
+
     def transition_to(self, target: EventStatus, now: datetime) -> None:
         if target == self.status:
             raise ConflictError(f"event is already {target.value}")

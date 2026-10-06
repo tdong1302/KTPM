@@ -16,10 +16,11 @@ Mở `http://localhost:8000/app/`. Một luồng trình bày ngắn:
 
 1. Tại trang khám phá, tìm kiếm/lọc sự kiện và mở chi tiết một sự kiện.
 2. Đăng ký tài khoản `ORGANIZER`, mở **Quản lý** và tạo một sự kiện.
-3. Xác nhận draft tự xuất hiện trong **Sự kiện của tôi**, lọc `DRAFT` rồi phát hành.
-4. Đăng xuất, đăng ký tài khoản `USER`, tìm sự kiện vừa phát hành và đặt vé.
-5. Mở **Vé của tôi**, xem chi tiết rồi hủy vé.
-6. Đăng nhập lại bằng tài khoản organizer để hủy sự kiện nếu muốn trình diễn vòng đời.
+3. Xác nhận draft tự xuất hiện trong **Sự kiện của tôi**, mở **Chỉnh sửa**, đổi thông tin rồi lưu.
+4. Lọc `DRAFT`, phát hành và xác nhận thao tác chỉnh sửa không còn xuất hiện.
+5. Đăng xuất, đăng ký tài khoản `USER`, tìm sự kiện vừa phát hành và đặt vé.
+6. Mở **Vé của tôi**, xem chi tiết rồi hủy vé.
+7. Đăng nhập lại bằng tài khoản organizer để hủy sự kiện nếu muốn trình diễn vòng đời.
 
 JWT chỉ được giữ trong `sessionStorage`, vì vậy đóng tab sẽ kết thúc phiên phía frontend. Dashboard
 lấy danh sách sở hữu từ `GET /api/events/mine`; backend suy ra organizer từ token và không tin owner
@@ -98,7 +99,7 @@ phục WSL2 theo [infrastructure-readiness-report.md](infrastructure-readiness-r
 | Health/API docs | `/health`, Swagger UI, OpenAPI 3 |
 | Authentication | Đăng ký ORGANIZER/USER, login, `/me`, login sai trả 401 |
 | Route protection | Booking route không token trả 401 |
-| Event management | Create DRAFT, publish, cancel, delete draft |
+| Event management | Create DRAFT, partial edit + persisted readback, reject edit after publish, cancel, delete draft |
 | Event visibility | Draft không public; published event tìm được qua search/filter |
 | Authorization | USER không publish event; ORGANIZER không đọc booking của USER |
 | Booking | Đặt 2 vé, xem danh sách booking, hủy booking |
@@ -128,12 +129,13 @@ Sau đó mở `http://127.0.0.1:8000/docs` và thao tác theo thứ tự:
 2. `POST /api/auth/login`: copy `access_token`.
 3. Bấm **Authorize**, dán token.
 4. `POST /api/events`: tạo event với `start_time` trong tương lai và `total_tickets=5`.
-5. `PATCH /api/events/{id}/publish`.
-6. Đăng ký/login một `USER`, Authorize lại bằng token USER.
-7. `GET /api/events` để tìm event đã publish.
-8. `POST /api/bookings` với `quantity=2`.
-9. `GET /api/bookings/me` và `GET /api/bookings/{id}`.
-10. `DELETE /api/bookings/{id}` rồi xem inventory event đã phục hồi.
+5. `PATCH /api/events/{id}` với một hoặc vài trường rồi `GET /api/events/{id}` để kiểm tra.
+6. `PATCH /api/events/{id}/publish`, sau đó thử edit lại và quan sát `409`.
+7. Đăng ký/login một `USER`, Authorize lại bằng token USER.
+8. `GET /api/events` để tìm event đã publish.
+9. `POST /api/bookings` với `quantity=2`.
+10. `GET /api/bookings/me` và `GET /api/bookings/{id}`.
+11. `DELETE /api/bookings/{id}` rồi xem inventory event đã phục hồi.
 
 Đóng terminal/server sau demo. Các biến trên chỉ là giá trị local trong process hiện tại.
 
@@ -166,5 +168,5 @@ dữ liệu trong volume có thể xóa.
 - `FAIL`: xem step đầu tiên fail và `server.stderr.log`.
 - Thời gian `ms` chỉ dùng chẩn đoán demo; không được báo cáo như benchmark.
 - Demo SQLite không chứng minh `SELECT ... FOR UPDATE` hoặc chống overselling dưới concurrency.
-- Bằng chứng concurrency chỉ hợp lệ khi năm test PostgreSQL trong `tests/concurrency/` thực sự chạy
-  và pass.
+- Bằng chứng concurrency chỉ hợp lệ khi toàn bộ test PostgreSQL trong `tests/concurrency/` thực sự
+  chạy và pass.
