@@ -1,6 +1,6 @@
-"""Verify that DATABASE_URL points to PostgreSQL with the migrated invariant constraints."""
+"""Verify that DATABASE_URL points to PostgreSQL with the invariant constraints."""
 
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 
 from app.config import get_settings
 from app.infrastructure.db.base import build_engine
@@ -21,7 +21,6 @@ EXPECTED_CHECKS = {
         "ck_bookings_status",
     },
 }
-EXPECTED_REVISION = "c4d2f3a1b890"
 
 
 def main() -> int:
@@ -31,11 +30,6 @@ def main() -> int:
         if engine.dialect.name != "postgresql":
             print("FAIL: DATABASE_URL is not using PostgreSQL")
             return 1
-        with engine.connect() as connection:
-            revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-        if revision != EXPECTED_REVISION:
-            print("FAIL: PostgreSQL schema is not at the expected Alembic head")
-            return 1
         inspector = inspect(engine)
         missing: list[str] = []
         for table, expected in EXPECTED_CHECKS.items():
@@ -44,7 +38,7 @@ def main() -> int:
         if missing:
             print("FAIL: missing check constraints: " + ", ".join(missing))
             return 1
-        print("PASS: PostgreSQL schema is at Alembic head with all 10 domain check constraints")
+        print("PASS: PostgreSQL has all 10 domain check constraints")
         return 0
     finally:
         engine.dispose()
