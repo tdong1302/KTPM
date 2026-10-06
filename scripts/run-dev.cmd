@@ -34,7 +34,9 @@ uv run --frozen python -m alembic upgrade head || goto :failed
 uv run --frozen python -m alembic current || goto :failed
 
 echo Starting EventHub at http://127.0.0.1:8000
-echo Swagger UI: http://127.0.0.1:8000/docs
+echo Frontend: http://127.0.0.1:8000/app/
+echo Swagger:  http://127.0.0.1:8000/docs
+echo Health:   http://127.0.0.1:8000/health
 uv run --frozen python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 set "APP_EXIT=%ERRORLEVEL%"
 popd

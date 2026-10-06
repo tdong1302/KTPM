@@ -25,6 +25,8 @@ PUBLIC_ROUTES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("GET", re.compile(r"^/docs/oauth2-redirect$")),
     ("GET", re.compile(r"^/redoc$")),
     ("GET", re.compile(r"^/openapi\.json$")),
+    ("GET", re.compile(r"^/app(?:/.*)?$")),
+    ("HEAD", re.compile(r"^/app(?:/.*)?$")),
     ("POST", re.compile(r"^/api/auth/register$")),
     ("POST", re.compile(r"^/api/auth/login$")),
     ("GET", re.compile(r"^/api/events$")),

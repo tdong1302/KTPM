@@ -1,8 +1,10 @@
 """Application factory and composition root."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.exception_handlers import register_exception_handlers
 from app.api.middleware import AuthenticationMiddleware
@@ -33,6 +35,8 @@ TAGS_METADATA = [
     {"name": "events", "description": "Event catalogue and lifecycle."},
     {"name": "bookings", "description": "Ticket booking and cancellation."},
 ]
+
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -77,6 +81,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth.router)
     application.include_router(events.router)
     application.include_router(bookings.router)
+    application.mount(
+        "/app",
+        StaticFiles(directory=FRONTEND_DIR, html=True),
+        name="frontend",
+    )
 
     return application
 

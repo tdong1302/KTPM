@@ -1,10 +1,10 @@
 # EventHub-KTPM
 
-Dịch vụ backend REST API cho nghiệp vụ **đặt vé sự kiện**, xây dựng làm **baseline (Pha 1)** cho
-môn Kiến trúc/Kỹ thuật phần mềm.
+Dịch vụ REST API và frontend MVP cho nghiệp vụ **đặt vé sự kiện**, xây dựng làm **baseline (Pha 1)**
+cho môn Kiến trúc/Kỹ thuật phần mềm.
 
-> **Trạng thái giao diện:** dự án hiện là **REST API-only**. Swagger UI tại `/docs` là giao diện
-> khám phá API, không phải frontend dành cho người dùng cuối.
+> **Frontend MVP:** mở `/app/` để dùng giao diện người dùng cuối. Swagger UI tại `/docs` vẫn dành
+> cho việc khám phá và kiểm thử API.
 
 > Mô tả hệ thống ngắn gọn: [docs/mo-ta-he-thong.md](docs/mo-ta-he-thong.md)
 
@@ -22,6 +22,7 @@ môn Kiến trúc/Kỹ thuật phần mềm.
 | ORM | SQLAlchemy 2.0 (data mapper), Alembic migration |
 | Database | PostgreSQL 16 |
 | Auth | JWT (HS256, PyJWT) + bcrypt, xác thực tại **middleware** |
+| Frontend | HTML/CSS/JavaScript thuần, được FastAPI phục vụ tại `/app/` |
 | API docs | OpenAPI 3.1 / Swagger UI tại `/docs` |
 | Đóng gói | Docker + docker compose |
 | Test | pytest (unit, kiến trúc, integration, concurrency) |
@@ -40,7 +41,7 @@ môn Kiến trúc/Kỹ thuật phần mềm.
 ### Ngoài phạm vi Pha 1
 
 Thanh toán, mã QR cho vé, thông báo, mua bán lại vé, upload ảnh, xác thực email, refresh token và
-giao diện người dùng đều nằm ngoài phạm vi.
+frontend framework/build pipeline đều nằm ngoài phạm vi.
 
 Pha 1 chủ ý giữ lõi nghiệp vụ đủ nhỏ để kiểm thử và đo đạc được, vì chính hệ thống này sẽ là đối
 tượng nghiên cứu ở Pha 2. Lý do của từng quyết định phạm vi ghi trong
@@ -173,7 +174,8 @@ uv run --frozen --extra dev pytest
 uv run --frozen --extra dev pytest --cov=app --cov-report=term-missing --cov-fail-under=95
 ```
 
-Mở http://localhost:8000/docs
+Mở frontend tại http://localhost:8000/app/ và Swagger tại http://localhost:8000/docs. Hướng dẫn sử
+dụng, giới hạn MVP và kịch bản trình bày: [docs/frontend-mvp.md](docs/frontend-mvp.md).
 
 ### Functional demo không cần Docker
 
@@ -193,7 +195,7 @@ bash scripts/run-demo.sh
 ```
 
 Demo SQLite dùng để trình diễn chức năng, không thay thế bằng chứng PostgreSQL concurrency hoặc
-benchmark. Hướng dẫn tự thao tác qua Swagger và chạy demo bằng Docker:
+benchmark. Hướng dẫn thao tác qua frontend/Swagger và chạy demo bằng Docker:
 [docs/demo-guide.md](docs/demo-guide.md).
 
 ## 8. Chạy bằng Docker
@@ -259,9 +261,8 @@ Bảng ghi kết quả: [docs/benchmark.md](docs/benchmark.md).
 
 Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
 tự động bằng AST, 14 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
-Swagger và đóng gói Docker. Lần kiểm tra hạ tầng gần nhất thu được **164 test collected: 159 pass,
-5 PostgreSQL concurrency test skip** khi máy kiểm tra không có PostgreSQL. Git history ghi nhận một
-lần chạy cũ trên PostgreSQL, nhưng không có raw test log kèm theo để tái lập. Đã chạy load test thật
+frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate frontend gần nhất thu được
+**174/174 test pass**, gồm **5/5 PostgreSQL concurrency test**, với coverage **97,73%**. Đã chạy load test thật
 trên Kaggle CPU cho hai kịch bản S2 (baseline throughput) và S3 (tranh chấp ghi) — số liệu và phân
 tích ở [docs/benchmark.md](docs/benchmark.md).
 
@@ -279,6 +280,7 @@ app/
 ├── infrastructure/  SQLAlchemy, repository, UnitOfWork, bcrypt, JWT
 └── api/             Router, schema, middleware, exception handler
 alembic/             Migration
+frontend/            Giao diện MVP tĩnh, không có build step
 tests/
 ├── unit/            Nghiệp vụ với fake repo + test ràng buộc kiến trúc
 ├── integration/     API thật qua TestClient + SQLite
