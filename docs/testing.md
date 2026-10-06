@@ -19,7 +19,7 @@ Script tiện dụng: `scripts/run-tests.ps1` (Windows) hoặc `scripts/run-test
 | Unit | `tests/unit/test_*_service.py` | Fake repo trong bộ nhớ | Quy tắc nghiệp vụ |
 | Kiến trúc | `tests/unit/test_architecture.py` | Phân tích AST | Ràng buộc phân tầng của đề bài |
 | Integration | `tests/integration/` | TestClient + SQLite | Hợp đồng HTTP, middleware, persistence |
-| Concurrency | `tests/concurrency/` | **PostgreSQL thật** | Không bán vượt vé khi tranh chấp |
+| Concurrency | `tests/concurrency/` | **PostgreSQL thật** | Không bán vượt vé; worker chia batch không trùng/lọt |
 
 ### Unit test
 
@@ -29,6 +29,10 @@ database, không HTTP server, không bcrypt — nên cả bộ chạy xong trong
 
 `FakeClock` cho phép test các quy tắc phụ thuộc thời gian (không đặt vé sau khi sự kiện đã bắt đầu)
 một cách tất định, không cần `sleep`.
+
+Completion suite còn kiểm tra biên `end_time == now`, từ chối hoàn tất sớm/trạng thái sai, batch
+limit/order/result, idempotence, rollback, stale-row recheck, cấu hình, one-shot/continuous loop và
+log không làm lộ chuỗi lỗi nhạy cảm. Worker-loop test inject hàm wait nên không dùng `sleep` thật.
 
 ### Test kiến trúc
 
@@ -61,6 +65,10 @@ Test này **bị SKIP** khi không có biến `TEST_DATABASE_URL` trỏ tới Po
 bán vượt vé đến từ `SELECT ... FOR UPDATE`, mà SQLite vốn tuần tự hoá mọi writer — chạy trên SQLite
 sẽ "pass" mà không chứng minh được gì. Skip trung thực hơn là pass giả.
 
+[`test_event_completion_concurrency.py`](../tests/concurrency/test_event_completion_concurrency.py)
+dùng synchronization event thay vì delay tùy ý: worker A giữ batch đầu, worker B phải hoàn tất batch
+còn lại trước khi A được thả. Kết quả chứng minh `SKIP LOCKED` không cập nhật trùng và không bỏ sót.
+
 Bật lên:
 
 ```bash
@@ -74,8 +82,9 @@ export TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@local
 uv run --frozen --extra dev pytest tests/concurrency -v
 ```
 
-Năm kịch bản: 20 người tranh 1 vé cuối; 40 người tranh 10 vé; đặt theo lô 3 vé trên 10 vé; huỷ nhiều
-booking đồng thời; và 20 request cùng huỷ một booking nhưng chỉ được hoàn tồn kho đúng một lần.
+Bảy kịch bản: 20 người tranh 1 vé cuối; 40 người tranh 10 vé; đặt theo lô 3 vé trên 10 vé; huỷ nhiều
+booking đồng thời; 20 request cùng huỷ một booking nhưng chỉ được hoàn tồn kho đúng một lần; edit và
+publish cùng tranh chấp; và hai completion worker chia row đã hết hạn bằng `SKIP LOCKED`.
 
 #### Kiểm chứng rằng test này thực sự nhạy
 

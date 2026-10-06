@@ -33,8 +33,7 @@ chứ không chỉ là quy ước.
              ▼
 ┌────────────────────────────────────────────────┐
 │ app/application    ← TẦNG NGHIỆP VỤ            │
-│  • auth_service.py / event_service.py /        │
-│    booking_service.py                          │
+│  • auth/event/booking/completion service       │
 │  • ports.py   Protocol: Repository, UnitOfWork,│
 │               PasswordHasher, TokenService,    │
 │               Clock                            │
@@ -98,9 +97,29 @@ quyết định cơ chế (`SELECT ... FOR UPDATE` trên PostgreSQL, bỏ qua tr
 tuần tự hoá mọi writer).
 
 **Quy tắc nghiệp vụ nằm trên aggregate.** `Event.reserve()`, `Event.transition_to()`,
-`Booking.cancel()` chứa invariant. Service điều phối và quản lý transaction. Database còn có check
+`Event.complete()`, `Booking.cancel()` chứa invariant. Service điều phối và quản lý transaction. Database còn có check
 constraint cho các giới hạn dữ liệu cốt lõi; code ngoài application service vẫn không được coi là
 đường ghi hợp lệ chỉ vì nó có thể gọi thẳng repository.
+
+## Worker hoàn tất sự kiện
+
+`app.workers.event_completion` là composition root thứ hai, độc lập với `app.main`: nó tạo engine,
+Unit of Work, `SystemClock` và `EventCompletionService` nhưng không khởi động FastAPI. Vì vậy web
+server không chứa polling loop và việc dừng/restart worker không ảnh hưởng API.
+
+Mỗi batch chọn `PUBLISHED` có `end_time <= now`, thứ tự `end_time ASC, id ASC`, có `LIMIT`, rồi gọi
+domain method `Event.complete(now)` và commit một lần. PostgreSQL dùng
+`SELECT ... FOR UPDATE SKIP LOCKED`; hai worker có thể lấy các row khác nhau. SQLite bỏ row lock và
+chỉ dùng cho functional test. Batch rỗng và lần chạy lặp lại không ghi gì, nên thao tác idempotent.
+
+Docker Compose chạy `api` và `worker` từ cùng image. Cả hai phụ thuộc migration hoàn tất; worker
+không publish port và có restart policy riêng.
+
+Operationally, invalid poll/batch settings fail startup, one-shot failures return a nonzero exit
+code, and continuous failures are reported by exception type before the next bounded wait. A large
+backlog can be drained explicitly with `scripts\run-completion-worker.cmd --once`; do not raise the
+batch above the validated limit of 1000. Completion is eventually consistent with the configured
+poll interval and deliberately does not create refund, notification, or realtime behavior.
 
 ### Ràng buộc được kiểm chứng tự động
 

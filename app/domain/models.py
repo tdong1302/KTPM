@@ -159,8 +159,16 @@ class Event:
             )
         if target == EventStatus.PUBLISHED:
             self.validate_publishable(now)
+        if target == EventStatus.COMPLETED:
+            self.validate_basics()
+            if self.end_time > now:
+                raise ConflictError("event has not ended yet")
         self.status = target
         self.updated_at = now
+
+    def complete(self, now: datetime) -> None:
+        """Complete an ended published event through the normal state machine."""
+        self.transition_to(EventStatus.COMPLETED, now)
 
     def ensure_deletable(self) -> None:
         if self.status != EventStatus.DRAFT:

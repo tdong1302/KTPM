@@ -60,7 +60,8 @@ try {
     & $python scripts/demo_api.py `
         --base-url "http://127.0.0.1:$Port" `
         --output-dir $demoDir `
-        --storage-label "SQLite local functional demo (not PostgreSQL concurrency evidence)"
+        --storage-label "SQLite local functional demo (not PostgreSQL concurrency evidence)" `
+        --run-completion-worker
     if ($LASTEXITCODE -ne 0) {
         throw "Functional demo failed. Inspect artifacts/demo/latest-demo-report.md and server.stderr.log."
     }

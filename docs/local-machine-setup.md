@@ -82,7 +82,7 @@ uv run --frozen python -m alembic upgrade head
 uv run --frozen python -m alembic current
 ```
 
-The expected migration head is `c4d2f3a1b890`. `scripts\run-dev.cmd` performs these startup and
+The expected migration head is `e7b4a9c21d60`. `scripts\run-dev.cmd` performs these startup and
 migration checks automatically before starting Uvicorn.
 
 ## Start the API
@@ -99,6 +99,24 @@ Open:
 - `http://127.0.0.1:8000/openapi.json`
 
 Press `Ctrl+C` in the CMD window to stop Uvicorn.
+
+## Automatic completion worker
+
+Run all currently due events and exit:
+
+```cmd
+scripts\run-completion-worker.cmd --once
+```
+
+Run continuously at the configured interval, then stop gracefully with `Ctrl+C`:
+
+```cmd
+scripts\run-completion-worker.cmd
+```
+
+The defaults are `EVENT_COMPLETION_POLL_SECONDS=60` and
+`EVENT_COMPLETION_BATCH_SIZE=100`. With Compose, `docker compose up -d api worker` starts both
+processes from the same image; `docker compose stop worker` leaves API and PostgreSQL running.
 
 ## Tests and quality checks
 
@@ -156,13 +174,15 @@ Do not add `-v` unless the development volume has been positively identified as 
   development database is healthy, then rerun Alembic.
 - **Concurrency tests skip:** use `scripts\run-tests.cmd --with-db`; it sets both the disposable
   test URL and `REQUIRE_POSTGRES_TESTS=1`.
+- **Worker one-shot exits nonzero:** confirm PostgreSQL is healthy and Alembic is at head, then run
+  it again. Continuous mode logs an exception type and waits for the next poll instead of spinning.
 
 ## Verification status and remaining blockers
 
 This host is **READY**. Docker Desktop started without UAC or restart, PostgreSQL 16 became healthy,
-an empty development database migrated to `c4d2f3a1b890`, and the PostgreSQL-backed API served
-health, OpenAPI, and Swagger successfully. The complete suite collected and passed 164 tests,
-including all five PostgreSQL concurrency tests, with 97.63% measured coverage (98% rounded).
+a development database migrated to `e7b4a9c21d60`, and the PostgreSQL-backed API and completion
+worker started independently. The complete suite collected and passed 257 tests, including all
+seven PostgreSQL concurrency tests, with 97.56% measured coverage.
 
 There are no remaining setup blockers. No Windows optional feature, BIOS setting, global Python
 default, or application architecture was changed. If Docker Desktop is not configured to start

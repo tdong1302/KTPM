@@ -33,8 +33,8 @@ cho môn Kiến trúc/Kỹ thuật phần mềm.
 ### Chức năng của hệ thống
 
 - Đăng ký, đăng nhập (JWT), xem tài khoản hiện tại.
-- Tạo / chỉnh sửa bản nháp / phát hành / huỷ / xoá sự kiện. Domain có trạng thái `COMPLETED`, nhưng baseline hiện chưa
-  có endpoint hoặc background job chuyển sự kiện sang trạng thái này.
+- Tạo / chỉnh sửa bản nháp / phát hành / huỷ / xoá sự kiện; worker riêng tự động chuyển sự kiện
+  đã kết thúc từ `PUBLISHED` sang `COMPLETED`.
 - Tra cứu sự kiện công khai: tìm kiếm, lọc, phân trang, sắp xếp.
 - Đặt vé (trừ tồn kho có khoá dòng), xem vé của mình, huỷ vé (hoàn tồn kho).
 
@@ -124,6 +124,10 @@ Tồn kho vé dùng một biến đếm `events.available_tickets`. Thao tác đ
 `SELECT ... FOR UPDATE` trong cùng một transaction, nên **không thể bán vượt số vé** khi nhiều
 người đặt đồng thời.
 
+Worker hoàn tất sự kiện chạy độc lập với tiến trình web. Mỗi transaction lấy một batch có giới hạn,
+sắp xếp theo `end_time, id`, và PostgreSQL dùng `FOR UPDATE SKIP LOCKED` để nhiều worker chia việc
+mà không chờ nhau. SQLite chỉ là fallback chức năng, không phải bằng chứng concurrency.
+
 ## 7. Development environment
 
 Yêu cầu: Python 3.11+, [uv](https://docs.astral.sh/uv/) và Docker Desktop/Compose v2 khi cần
@@ -163,7 +167,18 @@ scripts\setup-local.cmd
 scripts\run-dev.cmd
 scripts\run-demo.cmd
 scripts\run-tests.cmd --with-db
+scripts\run-completion-worker.cmd --once
 ```
+
+Chạy worker liên tục bằng `scripts\run-completion-worker.cmd`; dừng an toàn bằng `Ctrl+C`. Hai biến
+`EVENT_COMPLETION_POLL_SECONDS` (mặc định `60`) và `EVENT_COMPLETION_BATCH_SIZE` (mặc định `100`)
+điều khiển polling và kích thước transaction. Worker không thêm endpoint công khai; OpenAPI vẫn có
+16 operation.
+
+Nếu one-shot trả exit code khác `0`, kiểm tra kết nối database và migration rồi chạy lại; log chỉ
+ghi loại lỗi, không ghi URL kết nối. Continuous mode chờ đúng poll interval sau lỗi nên không tạo
+retry loop nóng. Trạng thái trên UI có eventual-consistency tối đa bằng poll interval và hiện chỉ
+cập nhật khi người dùng refresh theo hành vi sẵn có; slice này không thêm refund/realtime policy.
 
 Hướng dẫn đầy đủ và cảnh báo database test: [docs/local-machine-setup.md](docs/local-machine-setup.md).
 
@@ -208,7 +223,8 @@ curl http://localhost:8000/health
 ```
 
 Lệnh này dựng PostgreSQL 16 (cổng 5432), chạy Alembic tới `head`, rồi mới khởi động API ở cổng
-8000. `DB_AUTO_CREATE=false`; lỗi migration làm API không khởi động.
+8000 và worker nền không mở cổng. API và worker dùng cùng image/cấu hình database;
+`DB_AUTO_CREATE=false`; lỗi migration làm cả hai không khởi động.
 
 Dừng: `docker compose down` (thêm `-v` để xoá luôn dữ liệu).
 
@@ -263,8 +279,8 @@ Bảng ghi kết quả: [docs/benchmark.md](docs/benchmark.md).
 
 Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
 tự động bằng AST, 16 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
-frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate event-editing gần nhất thu được
-**227/227 test pass**, gồm **6/6 PostgreSQL concurrency test**, với coverage **98,09%**. Đã chạy load test thật
+frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate automatic-completion thu được
+**257/257 test pass**, gồm **7/7 PostgreSQL concurrency test**, với coverage **97,56%**. Đã chạy load test thật
 trên Kaggle CPU cho hai kịch bản S2 (baseline throughput) và S3 (tranh chấp ghi) — số liệu và phân
 tích ở [docs/benchmark.md](docs/benchmark.md).
 
@@ -280,6 +296,7 @@ app/
 ├── domain/          Dataclass, enum, quy tắc nghiệp vụ (thuần Python)
 ├── application/     Service + Port (Protocol) — tầng nghiệp vụ
 ├── infrastructure/  SQLAlchemy, repository, UnitOfWork, bcrypt, JWT
+├── workers/         Tiến trình nền độc lập, không import FastAPI
 └── api/             Router, schema, middleware, exception handler
 alembic/             Migration
 frontend/            Giao diện MVP tĩnh, không có build step

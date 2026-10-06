@@ -72,7 +72,43 @@ jobs:
 
       - name: Verify migration head and constraints
         run: |
-          uv run --frozen python -m alembic current
+          set -euo pipefail
+
+          heads_output="$(uv run --frozen python -m alembic heads 2>&1)"
+          current_output="$(uv run --frozen python -m alembic current 2>&1)"
+
+          printf '%s\n' "$heads_output"
+          printf '%s\n' "$current_output"
+
+          mapfile -t expected_revisions < <(
+            printf '%s\n' "$heads_output" |
+              tr -d '\r' |
+              sed -nE 's/^[[:space:]]*([^[:space:]]+).*[(]head[)][[:space:]]*$/\1/p'
+          )
+          mapfile -t database_revisions < <(
+            printf '%s\n' "$current_output" |
+              tr -d '\r' |
+              sed -nE 's/^[[:space:]]*([^[:space:]]+)([[:space:]]+[(][^)]*[)])?[[:space:]]*$/\1/p'
+          )
+
+          expected_display="${expected_revisions[*]:-<none>}"
+          database_display="${database_revisions[*]:-<none>}"
+
+          if (( ${#expected_revisions[@]} != 1 )); then
+            printf 'FAIL: expected exactly one Alembic head; repository revisions=%s; PostgreSQL revisions=%s\n' \
+              "$expected_display" "$database_display"
+            exit 1
+          fi
+
+          if (( ${#database_revisions[@]} != 1 )) || \
+             [[ "${database_revisions[0]}" != "${expected_revisions[0]}" ]]; then
+            printf 'FAIL: PostgreSQL schema is not at the expected Alembic head; expected=%s; actual=%s\n' \
+              "$expected_display" "$database_display"
+            exit 1
+          fi
+
+          printf 'PASS: PostgreSQL revision %s matches the single repository head\n' \
+            "${expected_revisions[0]}"
           uv run --frozen python scripts/verify_postgres_schema.py
 
       - name: Run architecture tests explicitly

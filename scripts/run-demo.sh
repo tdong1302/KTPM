@@ -26,6 +26,7 @@ trap 'kill "$server_pid" >/dev/null 2>&1 || true' EXIT
 uv run --frozen python scripts/demo_api.py \
   --base-url "http://127.0.0.1:$port" \
   --output-dir "$demo_dir" \
-  --storage-label "SQLite local functional demo (not PostgreSQL concurrency evidence)"
+  --storage-label "SQLite local functional demo (not PostgreSQL concurrency evidence)" \
+  --run-completion-worker
 
 echo "Demo completed. Open artifacts/demo/latest-demo-report.md"

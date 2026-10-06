@@ -48,7 +48,7 @@ Script sẽ:
 1. Cài đúng dependency từ `uv.lock` bằng `uv sync --frozen --extra dev`.
 2. Tạo/reset `artifacts/demo/eventhub-demo.sqlite3`.
 3. Khởi động Uvicorn ẩn tại `http://127.0.0.1:8765`.
-4. Chạy các request demo.
+4. Chạy các request demo, chờ event ngắn kết thúc và gọi worker one-shot.
 5. Sinh báo cáo Markdown và JSON đã loại secret.
 6. Dừng Uvicorn kể cả khi demo fail.
 
@@ -104,6 +104,7 @@ phục WSL2 theo [infrastructure-readiness-report.md](infrastructure-readiness-r
 | Authorization | USER không publish event; ORGANIZER không đọc booking của USER |
 | Booking | Đặt 2 vé, xem danh sách booking, hủy booking |
 | Inventory | 5 → 3 khi đặt 2 vé; 3 → 5 khi hủy |
+| Automatic completion | Event ngắn `PUBLISHED → COMPLETED`, rời catalogue, còn trong dashboard; edit/book trả 409 |
 
 Mỗi bước ghi method, path, HTTP status kỳ vọng/thực tế, thời gian và kết quả PASS/FAIL. Token,
 password và database URL không được ghi vào report.
@@ -143,19 +144,16 @@ Sau đó mở `http://127.0.0.1:8000/docs` và thao tác theo thứ tự:
 
 Khi Docker đã sẵn sàng:
 
-```powershell
+```cmd
 docker compose config
 docker compose up -d --build api
-uv run --frozen python scripts/demo_api.py `
-  --base-url http://127.0.0.1:8000 `
-  --output-dir artifacts/demo `
-  --storage-label "PostgreSQL 16 via Docker Compose"
+uv run --frozen python scripts\demo_api.py --base-url http://127.0.0.1:8000 --output-dir artifacts\demo --storage-label "PostgreSQL 16 via Docker Compose" --run-completion-worker
 ```
 
 Kiểm tra log và dừng stack:
 
-```powershell
-docker compose logs --no-color api migrate postgres
+```cmd
+docker compose logs --no-color api migrate postgres worker
 docker compose down
 ```
 
