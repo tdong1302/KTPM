@@ -1,37 +1,74 @@
 # Local Windows machine setup
 
 This repository supports local development on Windows through **Command Prompt (`cmd.exe`)**.
-The application is a FastAPI REST API; Swagger at `/docs` is developer documentation, not an
-end-user frontend.
+The end-user frontend is served at `/app/`; Swagger at `/docs` remains developer documentation.
 
 ## Supported setup and verified versions
 
-Verified on Windows 10 build `10.0.26200.9457` with:
+The supported baseline is Windows 10 or 11 with WSL2 optional. The current repository/host audit
+verified:
 
 | Tool | Verified version |
 |---|---|
 | Git for Windows | 2.45.1.windows.1 |
 | uv | 0.12.13 |
 | Python managed by uv | 3.11.16 |
-| Docker Engine CLI | 29.4.0 |
-| Docker Compose v2 | 5.1.1 |
-| PostgreSQL image | 16 Alpine |
-| WSL | WSL2; Ubuntu 22.04 is present |
+| Docker Engine CLI | 29.8.2; 29.4.0 or compatible is supported |
+| Docker Compose v2 | 5.5.1; 5.1.1 or compatible is supported |
+| PostgreSQL | 16.15 in the current `postgres:16-alpine` container |
+| WSL2 | Optional; not required for the normal CMD workflow |
 
-Python 3.11 is selected by `.python-version`. The existing global Python installations do not need
-to be removed or changed. Dependencies are installed from `uv.lock` without re-locking.
+`.python-version` selects the Python 3.11 line; the current uv-managed project interpreter is
+3.11.16. `Dockerfile` pins uv 0.12.13, while Compose intentionally pins PostgreSQL major version 16
+through `postgres:16-alpine`. Existing global Python installations do not need to be removed or
+changed.
+
+Important versions locked by `uv.lock`:
+
+| Package | Locked version |
+|---|---:|
+| FastAPI | 0.142.2 |
+| Uvicorn | 0.54.0 |
+| SQLAlchemy | 2.1.3 |
+| Alembic | 1.20.0 |
+| Pydantic | 2.13.5 |
+| pydantic-settings | 2.15.0 |
+| Psycopg | 3.3.6 |
+| PyJWT | 2.15.1 |
+| bcrypt | 4.3.0 |
+| pytest | 8.4.2 |
+| pytest-cov | 6.3.0 |
+| Ruff | 0.16.10 |
+
+`pyproject.toml` and `uv.lock` are canonical. Do not manually maintain `requirements.txt` or
+silently upgrade these packages.
 
 ## Initial setup
 
-Open **Command Prompt**, then run:
+Open **Command Prompt**, then run the complete first-time sequence:
+
+```cmd
+cd /d E:\University\Semester_7\SA\KTPM
+copy .env.example .env
+uv sync --frozen --extra dev
+scripts\verify-local.cmd
+docker compose up -d postgres
+uv run --frozen python -m alembic upgrade head
+scripts\run-tests.cmd --with-db
+scripts\run-dev.cmd
+```
+
+`scripts\run-dev.cmd` remains attached to the foreground Uvicorn process. Open a second CMD window
+for tests or the worker. For subsequent setup checks, the idempotent wrapper is:
 
 ```cmd
 cd /d E:\University\Semester_7\SA\KTPM
 scripts\setup-local.cmd
 ```
 
-The setup wrapper checks Git and uv, runs `uv sync --frozen --extra dev`, validates `.env` without
-printing values, and reports whether Docker Desktop is running.
+The setup wrapper checks Git and uv, synchronizes the frozen development environment, validates
+`.env` structurally without displaying values and reports Docker availability. It does not install
+or modify machine-wide Git, Python, Docker or PostgreSQL.
 
 If uv is missing and `winget` is available, install the official package from a new CMD window:
 
@@ -94,6 +131,7 @@ scripts\run-dev.cmd
 
 Open:
 
+- `http://127.0.0.1:8000/app/`
 - `http://127.0.0.1:8000/health`
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/openapi.json`
@@ -135,6 +173,17 @@ Run the full suite including all PostgreSQL concurrency tests:
 scripts\run-tests.cmd --with-db
 ```
 
+Run the complete local quality gate used before a pull request:
+
+```cmd
+scripts\quality-gate.cmd
+```
+
+It synchronizes locked dependencies, runs Ruff and formatting, validates Compose, migrates the
+development database, verifies the Alembic state/constraints, runs the full PostgreSQL suite with
+coverage and checks Git whitespace. It stops the disposable test database afterward but preserves
+the development PostgreSQL volume.
+
 **Safety warning:** the concurrency fixture calls `drop_all()`. The CMD wrapper deliberately uses
 only the Compose database `eventhub_test_disposable` on port 5433. Never set `TEST_DATABASE_URL` to
 the development database, a shared database, staging, production, or any database with valuable
@@ -170,6 +219,9 @@ Do not add `-v` unless the development volume has been positively identified as 
 - **Port 8765 is occupied:** run `scripts\run-demo.cmd -Port 8877`.
 - **Frozen sync fails:** do not regenerate `uv.lock` casually. Confirm Python 3.11 and uv 0.12.13,
   then retry `uv sync --frozen --extra dev`.
+- **Stale or wrong virtual environment:** remove only the project `.venv` after confirming its
+  absolute path is inside this repository, then rerun `uv sync --frozen --extra dev`. Do not alter
+  the global Python installation.
 - **Migration fails:** run `docker compose ps` and `docker compose logs postgres`, confirm the
   development database is healthy, then rerun Alembic.
 - **Concurrency tests skip:** use `scripts\run-tests.cmd --with-db`; it sets both the disposable
