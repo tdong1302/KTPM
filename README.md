@@ -164,10 +164,12 @@ Trên Windows Command Prompt (`cmd.exe`), dùng các wrapper ngắn gọn sau:
 
 ```cmd
 scripts\setup-local.cmd
+scripts\verify-local.cmd
 scripts\run-dev.cmd
 scripts\run-demo.cmd
 scripts\run-tests.cmd --with-db
 scripts\run-completion-worker.cmd --once
+scripts\quality-gate.cmd
 ```
 
 Chạy worker liên tục bằng `scripts\run-completion-worker.cmd`; dừng an toàn bằng `Ctrl+C`. Hai biến
@@ -181,6 +183,9 @@ retry loop nóng. Trạng thái trên UI có eventual-consistency tối đa bằ
 cập nhật khi người dùng refresh theo hành vi sẵn có; slice này không thêm refund/realtime policy.
 
 Hướng dẫn đầy đủ và cảnh báo database test: [docs/local-machine-setup.md](docs/local-machine-setup.md).
+
+Quy tắc branch/commit/PR và Definition of Done: [CONTRIBUTING.md](CONTRIBUTING.md). Kế hoạch chia
+việc ba thành viên và thứ tự merge Pha 2: [docs/phase2-team-plan.md](docs/phase2-team-plan.md).
 
 Các quality command chuẩn:
 
