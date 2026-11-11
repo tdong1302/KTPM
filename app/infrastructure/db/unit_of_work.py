@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.infrastructure.db.repositories import (
     SqlAlchemyBookingRepository,
     SqlAlchemyEventRepository,
+    SqlAlchemyReservationRepository,
     SqlAlchemyUserRepository,
 )
 
@@ -27,6 +28,7 @@ class SqlAlchemyUnitOfWork:
         self.users: SqlAlchemyUserRepository | None = None
         self.events: SqlAlchemyEventRepository | None = None
         self.bookings: SqlAlchemyBookingRepository | None = None
+        self.reservations: SqlAlchemyReservationRepository | None = None
 
     def __enter__(self) -> "SqlAlchemyUnitOfWork":
         if self._depth == 0:
@@ -34,6 +36,7 @@ class SqlAlchemyUnitOfWork:
             self.users = SqlAlchemyUserRepository(self._session)
             self.events = SqlAlchemyEventRepository(self._session)
             self.bookings = SqlAlchemyBookingRepository(self._session)
+            self.reservations = SqlAlchemyReservationRepository(self._session)
         self._depth += 1
         return self
 

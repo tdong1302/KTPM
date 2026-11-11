@@ -6,10 +6,11 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.application.ports import EventQuery
-from app.domain.enums import BookingStatus, EventStatus
+from app.domain.enums import BookingStatus, EventStatus, ReservationStatus
 from app.domain.models import Booking, Event, User
+from app.domain.reservation import Reservation
 from app.infrastructure.db import mappers
-from app.infrastructure.db.orm import BookingRecord, EventRecord, UserRecord
+from app.infrastructure.db.orm import BookingRecord, EventRecord, ReservationRecord, UserRecord
 
 _SORT_COLUMNS = {
     "start_time": EventRecord.start_time,
@@ -22,6 +23,51 @@ def _supports_row_locks(session: Session) -> bool:
     """SQLite has no ``SELECT ... FOR UPDATE``; it serialises writers anyway."""
     bind = session.get_bind()
     return bind.dialect.name != "sqlite"
+
+
+class SqlAlchemyReservationRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, reservation: Reservation) -> Reservation:
+        record = mappers.reservation_to_record(reservation)
+        self._session.add(record)
+        self._session.flush()
+        return mappers.reservation_to_domain(record)
+
+    def get_by_id(self, reservation_id: int) -> Reservation | None:
+        record = self._session.get(ReservationRecord, reservation_id)
+        return mappers.reservation_to_domain(record) if record is not None else None
+
+    def get_for_update(self, reservation_id: int) -> Reservation | None:
+        stmt = (
+            select(ReservationRecord)
+            .where(ReservationRecord.id == reservation_id)
+            .execution_options(populate_existing=True)
+        )
+        if _supports_row_locks(self._session):
+            stmt = stmt.with_for_update()
+        record = self._session.scalar(stmt)
+        return mappers.reservation_to_domain(record) if record is not None else None
+
+    def update(self, reservation: Reservation) -> Reservation:
+        record = self._session.get(ReservationRecord, reservation.id)
+        record.status = reservation.status.value
+        record.booking_id = reservation.booking_id
+        self._session.flush()
+        return mappers.reservation_to_domain(record)
+
+    def list_due_ids(self, now: datetime, limit: int) -> list[int]:
+        stmt = (
+            select(ReservationRecord.id)
+            .where(
+                ReservationRecord.status == ReservationStatus.RESERVED.value,
+                ReservationRecord.expires_at <= now,
+            )
+            .order_by(ReservationRecord.expires_at, ReservationRecord.id)
+            .limit(limit)
+        )
+        return list(self._session.scalars(stmt))
 
 
 class SqlAlchemyUserRepository:

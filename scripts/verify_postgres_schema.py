@@ -20,6 +20,12 @@ EXPECTED_CHECKS = {
         "ck_bookings_unit_price_nonnegative",
         "ck_bookings_status",
     },
+    "reservations": {
+        "ck_reservations_quantity",
+        "ck_reservations_time_order",
+        "ck_reservations_status",
+        "ck_reservations_booking_status",
+    },
 }
 
 
@@ -38,7 +44,8 @@ def main() -> int:
         if missing:
             print("FAIL: missing check constraints: " + ", ".join(missing))
             return 1
-        print("PASS: PostgreSQL has all 10 domain check constraints")
+        count = sum(map(len, EXPECTED_CHECKS.values()))
+        print(f"PASS: PostgreSQL has all {count} domain check constraints")
         return 0
     finally:
         engine.dispose()

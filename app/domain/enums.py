@@ -25,6 +25,13 @@ class BookingStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
+class ReservationStatus(str, Enum):
+    RESERVED = "RESERVED"
+    CONFIRMED = "CONFIRMED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+
+
 # Allowed event status transitions, mirroring the state machine of the reference
 # project (EventService.requireTransition).
 EVENT_TRANSITIONS: dict[EventStatus, frozenset[EventStatus]] = {

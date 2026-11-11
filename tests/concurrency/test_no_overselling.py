@@ -16,20 +16,23 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from threading import Barrier
 from threading import Event as ThreadEvent
 
 import pytest
 
 from app.application.booking_service import BookingService
 from app.application.event_service import EventService, UpdateEventCommand
+from app.application.reservation_service import ReservationService
 from app.config import Settings
-from app.domain.enums import BookingStatus, EventStatus, UserRole
-from app.domain.errors import DomainError
+from app.domain.enums import BookingStatus, EventStatus, ReservationStatus, UserRole
+from app.domain.errors import ConflictError, DomainError
 from app.domain.models import Event, User
 from app.infrastructure.clock import SystemClock
 from app.infrastructure.db.base import Base, build_engine, build_session_factory
 from app.infrastructure.db.orm import BookingRecord, EventRecord
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
+from tests.unit.fakes import FakeClock
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 REQUIRE_POSTGRES_TESTS = os.getenv("REQUIRE_POSTGRES_TESTS", "") == "1"
@@ -324,3 +327,75 @@ def test_edit_and_publish_serialize_without_losing_the_edit(session_factory):
         persisted = session.get(EventRecord, event_id)
         assert persisted.title == "Edited before publish"
         assert persisted.status == EventStatus.PUBLISHED.value
+
+
+def _race(*operations):
+    ready = Barrier(len(operations))
+
+    def invoke(operation):
+        ready.wait(timeout=5)
+        try:
+            return operation()
+        except ConflictError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=len(operations)) as pool:
+        futures = [pool.submit(invoke, operation) for operation in operations]
+        return [future.result(timeout=10) for future in futures]
+
+
+def test_reservation_and_direct_booking_share_last_ticket(session_factory):
+    event_id, buyers = _seed(session_factory, total_tickets=1)
+    hold_service = ReservationService(SqlAlchemyUnitOfWork(session_factory), SystemClock())
+    booking_service = BookingService(SqlAlchemyUnitOfWork(session_factory), SystemClock())
+
+    hold, booking = _race(
+        lambda: hold_service.reserve(buyers[0], event_id, 1),
+        lambda: booking_service.book(buyers[1], event_id, 1),
+    )
+
+    assert (hold is None) != (booking is None)
+    assert _read_state(session_factory, event_id) == (0, int(booking is not None))
+
+
+def test_concurrent_confirmation_creates_one_booking(session_factory):
+    event_id, buyers = _seed(session_factory, total_tickets=1)
+    clock = SystemClock()
+    first = ReservationService(SqlAlchemyUnitOfWork(session_factory), clock)
+    second = ReservationService(SqlAlchemyUnitOfWork(session_factory), clock)
+    hold = first.reserve(buyers[0], event_id, 1)
+
+    a, b = _race(
+        lambda: first.confirm(hold.id, buyers[0]),
+        lambda: second.confirm(hold.id, buyers[0]),
+    )
+
+    assert a.status == b.status == ReservationStatus.CONFIRMED
+    assert a.booking_id == b.booking_id
+    assert _read_state(session_factory, event_id) == (0, 1)
+
+
+@pytest.mark.parametrize("race_cancel", [False, True])
+def test_concurrent_expiry_and_cancellation_release_once(session_factory, race_cancel):
+    event_id, buyers = _seed(session_factory, total_tickets=1)
+    clock = FakeClock(SystemClock().now())
+    expiry_clock = FakeClock(clock.now() + timedelta(minutes=10))
+    owner = ReservationService(SqlAlchemyUnitOfWork(session_factory), clock)
+    worker = ReservationService(SqlAlchemyUnitOfWork(session_factory), expiry_clock)
+    other_worker = ReservationService(SqlAlchemyUnitOfWork(session_factory), expiry_clock)
+    hold = owner.reserve(buyers[0], event_id, 1)
+    # The cancel request sees a time just before the worker's expiry deadline.
+    clock.advance(minutes=10, microseconds=-1)
+
+    def competing_operation():
+        if race_cancel:
+            return owner.cancel(hold.id, buyers[0]) is not None
+        return other_worker.expire_batch()
+
+    expired, other = _race(worker.expire_batch, competing_operation)
+
+    assert expired + (other or 0) == 1
+    assert owner.get(hold.id, buyers[0]).status == (
+        ReservationStatus.EXPIRED if expired or not race_cancel else ReservationStatus.CANCELLED
+    )
+    assert _read_state(session_factory, event_id) == (1, 0)

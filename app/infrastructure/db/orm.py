@@ -106,3 +106,35 @@ class BookingRecord(Base):
         Index("ix_bookings_user_id_created_at", "user_id", "created_at"),
         Index("ix_bookings_event_id_status", "event_id", "status"),
     )
+
+
+class ReservationRecord(Base):
+    __tablename__ = "reservations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    event_id: Mapped[int] = mapped_column(
+        ForeignKey("events.id", ondelete="CASCADE"), nullable=False
+    )
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("bookings.id"), nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0 AND quantity <= 10", name="ck_reservations_quantity"),
+        CheckConstraint("created_at < expires_at", name="ck_reservations_time_order"),
+        CheckConstraint(
+            "status IN ('RESERVED', 'CONFIRMED', 'EXPIRED', 'CANCELLED')",
+            name="ck_reservations_status",
+        ),
+        CheckConstraint(
+            "(status = 'CONFIRMED' AND booking_id IS NOT NULL) OR "
+            "(status <> 'CONFIRMED' AND booking_id IS NULL)",
+            name="ck_reservations_booking_status",
+        ),
+        Index("ix_reservations_status_expires_at_id", "status", "expires_at", "id"),
+        Index("ix_reservations_event_id", "event_id"),
+        Index("ix_reservations_booking_id", "booking_id", unique=True),
+    )
