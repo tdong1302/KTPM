@@ -114,3 +114,13 @@ ra. Phép thử đối chứng này chạy ngoài repo (monkeypatch trong một 
 > **Cảnh báo:** fixture concurrency gọi `drop_all()` trước và sau suite. Chỉ đặt
 > `TEST_DATABASE_URL` tới database PostgreSQL dùng riêng cho test, không trỏ tới database local có
 > dữ liệu cần giữ.
+
+## Kiểm thử RES-01
+
+- Integration kiểm tra bearer token, quyền sở hữu, phản hồi quá hạn ở đúng `expires_at`,
+  sự kiện đã đóng bán và booking xuất hiện trong lịch sử sau xác nhận.
+- Concurrency trên PostgreSQL disposable kiểm tra giữ chỗ và đặt vé trực tiếp tranh vé cuối,
+  xác nhận đồng thời, hai worker cùng thu hồi và hủy tranh với worker. Kiểm tra tồn kho và
+  booking trong database sau khi các transaction kết thúc.
+- Chạy `scripts\run-tests.cmd --with-db` hoặc `scripts\quality-gate.cmd` trong CMD.
+  Các bài kiểm thử dùng SQLite kiểm tra chức năng API, còn kết luận về khóa dòng dựa trên PostgreSQL.

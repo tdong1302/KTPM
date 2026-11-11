@@ -174,8 +174,7 @@ scripts\quality-gate.cmd
 
 Chạy worker liên tục bằng `scripts\run-completion-worker.cmd`; dừng an toàn bằng `Ctrl+C`. Hai biến
 `EVENT_COMPLETION_POLL_SECONDS` (mặc định `60`) và `EVENT_COMPLETION_BATCH_SIZE` (mặc định `100`)
-điều khiển polling và kích thước transaction. Worker không thêm endpoint công khai; OpenAPI vẫn có
-16 operation.
+điều khiển polling và kích thước transaction. Worker không thêm endpoint công khai.
 
 Nếu one-shot trả exit code khác `0`, kiểm tra kết nối database và migration rồi chạy lại; log chỉ
 ghi loại lỗi, không ghi URL kết nối. Continuous mode chờ đúng poll interval sau lỗi nên không tạo
@@ -228,8 +227,11 @@ curl http://localhost:8000/health
 ```
 
 Lệnh này dựng PostgreSQL 16 (cổng 5432), chạy Alembic tới `head`, rồi mới khởi động API ở cổng
-8000 và worker nền không mở cổng. API và worker dùng cùng image/cấu hình database;
-`DB_AUTO_CREATE=false`; lỗi migration làm cả hai không khởi động.
+8000 cùng hai worker nền hoàn tất sự kiện và thu hồi giữ chỗ. API và worker dùng cùng
+image và cấu hình database.
+`DB_AUTO_CREATE=false`. API và các worker chỉ khởi động sau khi migration thành công.
+
+API giữ chỗ và các trạng thái được mô tả trong [đặc tả RES-01](docs/api.md#reservations--giữ-chỗ-có-thời-hạn).
 
 Dừng: `docker compose down` (thêm `-v` để xoá luôn dữ liệu).
 

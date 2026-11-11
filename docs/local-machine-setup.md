@@ -119,7 +119,7 @@ uv run --frozen python -m alembic upgrade head
 uv run --frozen python -m alembic current
 ```
 
-The expected migration head is `e7b4a9c21d60`. `scripts\run-dev.cmd` performs these startup and
+The expected migration head is `8d2fe144b7c0`. `scripts\run-dev.cmd` performs these startup and
 migration checks automatically before starting Uvicorn.
 
 ## Start the API
@@ -239,3 +239,18 @@ seven PostgreSQL concurrency tests, with 97.56% measured coverage.
 There are no remaining setup blockers. No Windows optional feature, BIOS setting, global Python
 default, or application architecture was changed. If Docker Desktop is not configured to start
 automatically, starting it after a reboot is the only manual host step.
+
+## Reservation expiry worker
+
+After applying `uv run --frozen python -m alembic upgrade head`, run the expiry worker
+from a separate Command Prompt for local development.
+
+```cmd
+uv run --frozen python -m app.workers.reservation_expiry
+```
+
+Use `--once` to reclaim currently due holds and exit. The continuous worker polls every
+five seconds when idle and can be stopped with Ctrl+C. Docker Compose starts the
+`reservation-expiry` service after migrations succeed. View its logs with
+`docker compose logs reservation-expiry`. Before downgrading the reservation revision,
+stop reservation traffic and let the worker reclaim all holds.
