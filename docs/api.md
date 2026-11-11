@@ -201,7 +201,7 @@ payload không hợp lệ
 Không có endpoint hoàn tất công khai. Worker độc lập chuyển `PUBLISHED → COMPLETED` khi
 `end_time <= now`; chuyển sớm hoặc từ trạng thái khác bị domain từ chối. Event đã hoàn tất vẫn đọc
 được qua detail và `/api/events/mine`, nhưng bị loại khỏi catalogue công khai, không thể sửa hay
-đặt vé. OpenAPI vẫn giữ nguyên 16 operation.
+đặt vé. Worker không thêm endpoint công khai.
 
 ### `DELETE /api/events/{id}` — 🔒 chủ sở hữu/ADMIN → `204`
 
@@ -258,3 +258,37 @@ Chủ booking hoặc `ADMIN` có thể huỷ. Booking được khoá lại trong
 
 **Lỗi:** `403` vé của người khác đối với caller không phải `ADMIN` · `409` đã huỷ rồi, hoặc sự kiện
 đã bắt đầu · `404` không tồn tại
+
+## Reservations — Giữ chỗ có thời hạn
+
+| Method | Path | Kết quả thành công |
+|---|---|---|
+| POST | `/api/reservations` | `201`, tạo lượt giữ chỗ |
+| GET | `/api/reservations/{reservation_id}` | `200`, xem trạng thái |
+| POST | `/api/reservations/{reservation_id}/confirm` | `200`, xác nhận và tạo booking |
+| DELETE | `/api/reservations/{reservation_id}` | `200`, hủy giữ chỗ và hoàn vé |
+
+Tạo giữ chỗ với body `{"event_id": 1, "quantity": 2}`. Số lượng từ 1 đến 10.
+Tất cả thao tác cần bearer token. Chỉ chủ lượt giữ chỗ được xem, xác nhận và hủy.
+
+```json
+{
+  "id": 42,
+  "event_id": 1,
+  "quantity": 2,
+  "status": "RESERVED",
+  "expires_at": "2026-11-11T08:10:00Z",
+  "booking_id": null
+}
+```
+
+- Thời hạn là 10 phút tính từ khi lấy được khóa tồn kho, tối đa đến giờ bắt đầu sự kiện.
+  Tại `expires_at`, lượt giữ chỗ đã hết hạn. GET trả trạng thái đã lưu, có thể còn
+  `RESERVED` trong lúc chờ worker cập nhật. Giao diện dùng `expires_at` để khóa xác nhận.
+- `CONFIRMED` có `booking_id` dùng được với API Bookings. Gửi lại yêu cầu xác nhận trả cùng
+  booking. Vé đã xác nhận được hủy qua `DELETE /api/bookings/{booking_id}`.
+- Hủy giữ chỗ còn hạn chuyển sang `CANCELLED`. Worker chuyển giữ chỗ đến hạn sang
+  `EXPIRED`. Cả hai hoàn tồn kho trong cùng transaction với việc đổi trạng thái.
+- `401` khi thiếu token hợp lệ, `403` khi giữ chỗ thuộc người khác, `404` khi không tìm
+  thấy và `422` khi body sai. `409` khi hết vé, sự kiện đóng bán hoặc trạng thái không
+  cho phép thao tác. Xác nhận hoặc hủy giữ chỗ hết hạn trả mã `RESERVATION_EXPIRED`.

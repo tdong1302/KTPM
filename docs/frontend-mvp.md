@@ -36,7 +36,7 @@ transaction vẫn do backend quyết định.
 resolve từ vị trí source, không phụ thuộc thư mục hiện tại của terminal. Middleware cho phép GET và
 HEAD dưới `/app`, trong khi chính sách xác thực của `/api/...` không thay đổi.
 
-Static mount không xuất hiện trong OpenAPI; API có 16 operation nghiệp vụ. Không cần CORS vì
+Static mount không xuất hiện trong OpenAPI. Không cần CORS vì
 HTML, JavaScript và API cùng origin. Docker image copy đúng thư mục `frontend`, không chia sẻ phần
 còn lại của repository.
 
