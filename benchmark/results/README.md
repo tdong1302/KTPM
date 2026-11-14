@@ -1,10 +1,14 @@
-# Raw benchmark results
+# Historical raw benchmark results
 
 Mỗi lần chạy sinh ra các file `<tag>_stats.csv`, `<tag>_failures.csv`,
 `<tag>_exceptions.csv`, `<tag>_stats_history.csv` và `<tag>-environment.txt`.
 
-Đây là **dữ liệu thô làm bằng chứng**. Số liệu đã được tổng hợp vào `docs/benchmark.md`.
+Đây là **dữ liệu thô lịch sử làm bằng chứng**. Số liệu đã được tổng hợp vào `docs/benchmark.md`.
 Không sửa tay các file này.
+
+Phase 2 BEFORE tạo raw JSON/CSV/log dưới `artifacts/benchmarks/` và Git bỏ qua thư mục đó. Compact
+reviewed evidence nằm ở `docs/benchmark-baseline-phase2.md`. Cách này giữ bằng chứng local để audit
+mà không đưa hàng chục file generated/large vào Git.
 
 | Tag | Kịch bản | Ngày chạy (UTC) | Phần cứng | Git commit |
 |---|---|---|---|---|

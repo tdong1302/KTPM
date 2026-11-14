@@ -2,15 +2,16 @@
 
 ## Cách chạy
 
-```bash
-uv run --frozen --extra dev pytest                      # toàn bộ
-uv run --frozen --extra dev pytest tests/unit           # unit + kiến trúc
-uv run --frozen --extra dev pytest tests/integration    # API + SQLite
-uv run --frozen --extra dev pytest --cov=app            # kèm coverage
-uv run --frozen --extra dev pytest -m concurrency       # cần PostgreSQL
+```cmd
+scripts\run-tests.cmd --with-db
+uv run --frozen pytest tests\unit
+uv run --frozen pytest tests\integration
+uv run --frozen pytest tests\unit\test_benchmark_support.py
+scripts\quality-gate.cmd
 ```
 
-Script tiện dụng: `scripts/run-tests.ps1` (Windows) hoặc `scripts/run-tests.sh` (Linux/macOS).
+`run-tests.cmd --with-db` tự trỏ concurrency suite tới PostgreSQL test disposable; không cần đặt
+hoặc in connection URL thủ công.
 
 ## Bốn tầng kiểm thử
 
@@ -69,17 +70,10 @@ sẽ "pass" mà không chứng minh được gì. Skip trung thực hơn là pas
 dùng synchronization event thay vì delay tùy ý: worker A giữ batch đầu, worker B phải hoàn tất batch
 còn lại trước khi A được thả. Kết quả chứng minh `SKIP LOCKED` không cập nhật trùng và không bỏ sót.
 
-Bật lên:
+Chạy bằng Command Prompt:
 
-```bash
-docker compose --profile test up -d postgres-test
-
-# Windows PowerShell
-$env:TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
-# Linux/macOS
-export TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
-
-uv run --frozen --extra dev pytest tests/concurrency -v
+```cmd
+scripts\run-tests.cmd --with-db tests\concurrency -v
 ```
 
 Bảy kịch bản: 20 người tranh 1 vé cuối; 40 người tranh 10 vé; đặt theo lô 3 vé trên 10 vé; huỷ nhiều
@@ -100,10 +94,17 @@ chứ không phải vì khoá hoạt động. Ngày 2026-09-20 đã chạy một
 Nghĩa là khoá dòng chính là thứ tạo ra tính đúng đắn, và bộ test sẽ phát hiện ngay nếu ai đó gỡ nó
 ra. Phép thử đối chứng này chạy ngoài repo (monkeypatch trong một script tạm), không sửa mã nguồn.
 
+### Benchmark-tool tests
+
+[`test_benchmark_support.py`](../tests/unit/test_benchmark_support.py) kiểm tra parsing dữ liệu
+Locust, empty/malformed input, percentile/repetition aggregation, warm-up exclusion, CPU/RSS sample
+filtering, `201`/`409` classification, redaction và destructive-target safety. Smoke/full runs dùng
+PostgreSQL test disposable và nằm ngoài unit suite; xem [benchmark scenarios](../benchmark/scenarios.md).
+
 ## Những gì hiện CHƯA có
 
-- Đã có một lần chạy S2 và một lần chạy S3; S1/S4 và các lần chạy lặp chưa có. Xem
-  [benchmark.md](benchmark.md) và [stabilization-report.md](stabilization-report.md).
+- Phase 2 BEFORE S1–S4 đã chạy ba lần mỗi cấu hình. Pool acquisition wait, query time và threadpool
+  wait vẫn chưa có instrumentation; xem [baseline report](benchmark-baseline-phase2.md).
 - Chưa có kiểm thử trên PostgreSQL cho các luồng API thông thường (integration test dùng SQLite).
   Những phần bắt buộc kiểm tra riêng trên PostgreSQL gồm `SELECT ... FOR UPDATE` và Alembic DDL
   thêm check constraint; SQLite integration dùng `create_all()` nên không thay thế được hai kiểm tra này.
