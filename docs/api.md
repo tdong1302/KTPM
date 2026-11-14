@@ -5,6 +5,10 @@ Swagger UI: `/docs` · ReDoc: `/redoc` · OpenAPI JSON: `/openapi.json`
 
 Mọi request/response đều dùng JSON.
 
+Mọi response trả header `X-Request-ID`. Client có thể gửi một ID dài tối đa 64 ký tự thuộc tập
+`A-Z a-z 0-9 . _ : -`; server giữ ID hợp lệ và thay ID thiếu, quá dài hoặc chứa ký tự điều khiển.
+Giữ giá trị này khi báo lỗi để đối chiếu với trường `correlation_id` trong log.
+
 ## Xác thực
 
 Gọi `POST /api/auth/login` để lấy `access_token`, rồi gửi kèm mọi request được bảo vệ:
@@ -51,6 +55,28 @@ Endpoint danh sách trả về:
 ```json
 { "status": "UP", "service": "eventhub-ktpm" }
 ```
+
+Endpoint này chỉ là liveness, không truy cập database.
+
+### `GET /ready` — công khai về mặt ứng dụng, operational
+
+Chạy `SELECT 1` bằng PostgreSQL engine hiện hữu. Trả `200` khi sẵn sàng:
+
+```json
+{ "status": "READY", "service": "eventhub-ktpm" }
+```
+
+Nếu không kết nối được database, trả `503` với `status = "NOT_READY"`; response không chứa host,
+URL, credentials, schema hay exception text. Timeout kết nối được chặn bởi `DB_POOL_TIMEOUT` hiện
+hữu. `/health` vẫn có thể trả `200` khi `/ready` trả `503`.
+
+### `GET /metrics` — công khai về mặt ứng dụng, operational
+
+Trả Prometheus text format. Endpoint không xuất secret hoặc business identifier. Production cần
+giới hạn bằng network/reverse proxy và chỉ cho hệ thống monitoring truy cập; frontend không liên
+kết tới endpoint này.
+
+Việc thêm `/ready` và `/metrics` làm OpenAPI tăng từ 16 operation nghiệp vụ lên 18 operation tổng.
 
 ---
 
@@ -201,7 +227,7 @@ payload không hợp lệ
 Không có endpoint hoàn tất công khai. Worker độc lập chuyển `PUBLISHED → COMPLETED` khi
 `end_time <= now`; chuyển sớm hoặc từ trạng thái khác bị domain từ chối. Event đã hoàn tất vẫn đọc
 được qua detail và `/api/events/mine`, nhưng bị loại khỏi catalogue công khai, không thể sửa hay
-đặt vé. OpenAPI vẫn giữ nguyên 16 operation.
+đặt vé. Worker không thêm endpoint; OpenAPI có 16 operation nghiệp vụ và 2 operation vận hành.
 
 ### `DELETE /api/events/{id}` — 🔒 chủ sở hữu/ADMIN → `204`
 
