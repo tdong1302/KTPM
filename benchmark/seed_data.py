@@ -19,6 +19,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from alembic.config import Config  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+
+from alembic import command  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.domain.enums import EventStatus, UserRole  # noqa: E402
 from app.domain.models import Event, User  # noqa: E402
@@ -26,8 +30,10 @@ from app.infrastructure.db import orm  # noqa: E402,F401
 from app.infrastructure.db.base import Base, build_engine, build_session_factory  # noqa: E402
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork  # noqa: E402
 from app.infrastructure.security.bcrypt_hasher import BcryptPasswordHasher  # noqa: E402
+from benchmark.support import safe_database_identity  # noqa: E402
 
 SEED = 20260920
+SEED_CLOCK = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)
 CITIES = ["Hanoi", "Da Nang", "Ho Chi Minh City", "Hue", "Can Tho"]
 CATEGORIES = ["music", "sport", "conference", "workshop", "theatre"]
 
@@ -36,13 +42,35 @@ BUYER_EMAIL = "bench-buyer@example.com"
 BENCH_PASSWORD = "loadtest-password"
 
 
-def seed(event_count: int, reset: bool) -> None:
+def _reset_and_migrate(database_url: str) -> dict[str, str]:
+    identity = safe_database_identity(database_url)
+    engine = build_engine(get_settings())
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
+    finally:
+        engine.dispose()
+
+    alembic_config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    command.upgrade(alembic_config, "head")
+    return identity
+
+
+def seed(event_count: int, reset: bool, allow_destructive_reset: bool = False) -> None:
     random.seed(SEED)
     settings = get_settings()
-    engine = build_engine(settings)
 
     if reset:
-        Base.metadata.drop_all(bind=engine)
+        if not allow_destructive_reset:
+            raise ValueError("--reset also requires --allow-destructive-reset")
+        identity = _reset_and_migrate(settings.database_url)
+        print(
+            "reset and migrated disposable benchmark database "
+            f"host={identity['host']} database={identity['database']}"
+        )
+
+    engine = build_engine(settings)
     Base.metadata.create_all(bind=engine)
 
     session_factory = build_session_factory(engine)
@@ -50,7 +78,7 @@ def seed(event_count: int, reset: bool) -> None:
     # Cost factor 4 keeps seeding fast; it does not affect the API under test, which
     # uses the configured BCRYPT_ROUNDS.
     hasher = BcryptPasswordHasher(rounds=4)
-    now = datetime.now(timezone.utc)
+    now = SEED_CLOCK
 
     with uow:
         if uow.users.exists_by_email(ORGANIZER_EMAIL):
@@ -95,8 +123,12 @@ def seed(event_count: int, reset: bool) -> None:
             )
         uow.commit()
 
-    safe_database_url = engine.url.render_as_string(hide_password=True)
-    print(f"seeded {event_count} published events into {safe_database_url}")
+    host = engine.url.host or "unknown"
+    database = engine.url.database or "unknown"
+    print(
+        f"seeded {event_count} published events with seed={SEED} "
+        f"into host={host} database={database}"
+    )
     engine.dispose()
 
 
@@ -106,8 +138,13 @@ def main() -> None:
     parser.add_argument(
         "--reset", action="store_true", help="drop and recreate the schema before seeding"
     )
+    parser.add_argument(
+        "--allow-destructive-reset",
+        action="store_true",
+        help="required acknowledgement for a reset of a validated disposable local database",
+    )
     args = parser.parse_args()
-    seed(args.events, args.reset)
+    seed(args.events, args.reset, args.allow_destructive_reset)
 
 
 if __name__ == "__main__":

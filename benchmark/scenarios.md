@@ -1,97 +1,112 @@
-# Load test scenarios
+# Reproducible benchmark scenarios
 
-These scenarios are fixed so that Phase 1 (BEFORE) and Phase 2 (AFTER) measure the same
-thing. Do not change them between runs. If a scenario must change, record why and re-run
-the baseline.
+These definitions are the Phase 2 BEFORE contract. An AFTER comparison must keep the commit,
+machine, Docker/PostgreSQL configuration, worker/pool configuration, seed, warm-up, duration,
+concurrency and repetition count visible. If the workload changes, run a new BEFORE baseline.
 
 ## Fixed conditions
 
-Every run must hold these constant and record them next to the results:
-
-| Condition | Value |
+| Condition | Phase 2 BEFORE value |
 |---|---|
-| Hardware | Kaggle CPU notebook (record the exact CPU model and core count from `lscpu`) |
-| Database | PostgreSQL 16, local to the runner |
-| Dataset | `python benchmark/seed_data.py --reset --events 500` (fixed random seed `20260920`) |
-| App server | `uvicorn app.main:app --workers 1` unless the scenario says otherwise |
-| `BCRYPT_ROUNDS` | 12 |
-| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | 5 / 10 |
-| Warm-up | 30 s discarded before measurement |
+| Target | Local EventHub only; runner rejects non-local API/database targets |
+| Database | Compose `postgres-test`, PostgreSQL 16, `eventhub_test_disposable` on port 5433 |
+| Reset | Explicit disposable-name check + destructive acknowledgement; reset, Alembic, then seed |
+| Dataset | Seed `20260920`, fixed clock `2030-01-01T12:00:00Z` |
+| App | Uvicorn, one worker |
+| Pool | size 5, max overflow 10, timeout 30 s |
+| Security cost | `BCRYPT_ROUNDS=12` |
+| Warm-up | Start after all users spawn; run 30 s; discard all ramp/setup/warm-up stats |
+| Repetitions | 3 per measured configuration; report median and min/max spread |
+| Resources | API parent + child processes sampled every second; 100% CPU = one logical core |
+| Raw output | `artifacts/benchmarks/` (ignored); reviewed summary only under `docs/` |
 
-Record the git commit hash of the code under test with every result.
+Run from Command Prompt:
 
-## Workload mix
+```cmd
+cd /d E:\University\Semester_7\SA\KTPM
+scripts\run-benchmark.cmd --scenario s1 --scenario s2 --scenario s3
+scripts\run-benchmark.cmd --scenario s4
+```
 
-`benchmark/locustfile.py` defines two user classes, weighted 7:3:
+Safe smoke runs use two-second warm-up, five-second measurement, one repetition and S4 levels 1,2:
 
-- **CatalogueBrowser** (weight 7) - anonymous reads: event listing, filtered listing,
-  event detail.
-- **TicketBuyer** (weight 3) - registers, logs in, then reads `/api/bookings/me` and
-  performs contended `POST /api/bookings` with occasional cancellations.
+```cmd
+scripts\run-benchmark.cmd --scenario s1 --scenario s4 --smoke
+```
 
-A `409 Conflict` on booking means "sold out", which is a correct business outcome under
-contention. The locustfile marks it as a success on purpose; counting it as an error
-would make the error rate meaningless.
+The CLI also exposes `--base-url`, `--warm-up`, `--repetitions`, `--duration`, `--concurrency`,
+`--s4-levels`, `--output-dir` and repeatable `--scenario`. The API URL must resolve explicitly to
+localhost. The database profile is intentionally fixed to the disposable Compose test database.
 
-## Scenarios
+## S1 — normal read path
 
-### S1 - Read-heavy baseline
-Purpose: establish latency and throughput of the public catalogue.
+Purpose: measure catalogue queries without bcrypt or booking mutations.
 
 | Parameter | Value |
-|---|---|
-| Users | 50 |
-| Spawn rate | 10 /s |
-| Duration | 3 min |
+|---|---:|
+| Users / spawn rate | 50 / 10 per second |
+| Measured duration | 180 s |
+| Seed events | 500 |
 
-```
-locust -f benchmark/locustfile.py --headless --host http://localhost:8000 \
-       --users 50 --spawn-rate 10 --run-time 3m --csv benchmark/results/s1-baseline
-```
+`ReadPathBrowser` performs distinct groups for catalogue listing, city filtering,
+search+category+price sort, and event detail. A separate 20-request `/health` diagnostic is kept
+out of catalogue throughput and latency.
 
-### S2 - Sustained mixed load
-Purpose: the main before/after comparison point.
+## S2 — sustained mixed load
+
+Purpose: retain the original main comparison workload.
 
 | Parameter | Value |
+|---|---:|
+| Users / mix | 100; catalogue/buyer weight 7:3 |
+| Spawn rate / measured duration | 20 per second / 300 s |
+| Seed events | 500 |
+
+The catalogue and buyer task weights/wait times are unchanged. Measurement now begins only after
+one-time register/login/setup and a 30-second full-load warm-up. Booking `201` and valid `409` are
+separate groups; unexpected responses remain failures.
+
+## S3 — single-row write contention
+
+Purpose: retain the original scarce-event workload and prove the inventory invariant.
+
+| Parameter | Value |
+|---|---:|
+| Users / mix | 100; catalogue/buyer weight 7:3 |
+| Spawn rate / measured duration | 50 per second / 120 s |
+| Seed events | 1 |
+
+After each repetition the runner verifies
+`available_tickets + confirmed_quantity == total_tickets`. A sold-out `409` is a correct business
+outcome and is reported separately from genuine infrastructure/application errors.
+
+## S4 — safe saturation search
+
+Purpose: find evidence of a throughput plateau, disproportionate tail latency or errors without
+forcing the workstation into an unsafe state.
+
+| Parameter | Default |
 |---|---|
-| Users | 100 |
-| Spawn rate | 20 /s |
-| Duration | 5 min |
+| Concurrency ladder | `1,5,10,20,40,80` (configurable) |
+| Spawn rate | up to 10 per second |
+| Measured duration | 120 s per level |
+| Repetitions | 3 per level |
+| Workload / seed | S2 mixed workload / 500 events |
 
-```
-locust -f benchmark/locustfile.py --headless --host http://localhost:8000 \
-       --users 100 --spawn-rate 20 --run-time 5m --csv benchmark/results/s2-baseline
-```
+At every level the database is reset/migrated/seeded and warm-up stats are discarded. Saturation is
+the first level with error rate over 1%, p95 over 1,000 ms, or two consecutive throughput-growth
+steps below 10% accompanied by at least 50% p95 growth. The runner stops after evidenced
+saturation. If no rule fires, report exactly: `Saturation point not reached within tested range`.
 
-### S3 - Write contention on a scarce event
-Purpose: measure the cost of the row lock that prevents overselling.
+At very low levels Locust must round the 7:3 weights (u=1 is read-only; u=5 was 3:2). Use those
+points for curve shape, not endpoint-mix comparisons. Levels 10, 20, 40 and 80 preserve 7:3 exactly.
 
-Seed a single event with a small inventory and point the buyers at it:
+## Measurement interpretation
 
-```
-python benchmark/seed_data.py --reset --events 1
-locust -f benchmark/locustfile.py --headless --host http://localhost:8000 \
-       --users 100 --spawn-rate 50 --run-time 2m --csv benchmark/results/s3-baseline
-```
-
-Alongside latency, assert the correctness invariant after the run:
-`tickets_sold + available_tickets == total_tickets`.
-
-### S4 - Saturation search
-Purpose: find the point where p95 latency exceeds 1 s or the error rate exceeds 1 %.
-
-Step the user count: 25, 50, 100, 200, 400. Two minutes per step. Record the last step
-that stayed within the thresholds; that number is the baseline capacity.
-
-## Metrics to record
-
-| Metric | Source |
-|---|---|
-| Throughput (req/s) | locust `*_stats.csv`, aggregated row |
-| p50 / p95 / p99 latency | locust `*_stats.csv` per endpoint |
-| Error rate | locust `*_failures.csv` |
-| CPU and RSS of the API process | `psutil` sampler, or `top -b` during the run |
-| Correctness invariant (S3) | SQL query after the run |
-
-Write the numbers into `docs/benchmark.md` only after an actual run, and keep the raw
-CSV files under `benchmark/results/`.
+- Locust quitting-hook JSON is authoritative because periodic CSV can lag the final request count.
+- CSV/history/status/resource files remain raw evidence and must not be edited by hand.
+- CPU/RSS belong to the Uvicorn process tree, not the whole machine.
+- Connection-pool acquisition wait is `NOT YET MEASURED`; accurate values require narrowly scoped
+  application instrumentation on `feature/observability-foundation`.
+- S2/S3 workload behavior was not changed. Excluding ramp/setup traffic is an explicit measurement
+  boundary correction; old historical CSV and new steady-state numbers are not interchangeable.

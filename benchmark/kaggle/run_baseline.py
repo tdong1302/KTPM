@@ -36,7 +36,7 @@ RESULTS_DIR = PROJECT_ROOT / "benchmark" / "results"
 
 PG_USER = "eventhub"
 PG_PASSWORD = "eventhub"
-PG_DB = "eventhub_ktpm"
+PG_DB = "eventhub_benchmark_disposable"
 DATABASE_URL = f"postgresql+psycopg://{PG_USER}:{PG_PASSWORD}@localhost:5432/{PG_DB}"
 BASE_URL = "http://127.0.0.1:8000"
 
@@ -138,6 +138,7 @@ def main() -> int:
             sys.executable,
             str(PROJECT_ROOT / "benchmark" / "seed_data.py"),
             "--reset",
+            "--allow-destructive-reset",
             "--events",
             str(scenario["events"]),
         ],
@@ -169,13 +170,14 @@ def main() -> int:
         wait_for_health()
         record_environment(tag)
 
-        print("warming up for 30s")
-        warmup_deadline = time.time() + 30
-        while time.time() < warmup_deadline:
-            try:
-                urllib.request.urlopen(f"{BASE_URL}/api/events?size=20", timeout=5).read()
-            except (urllib.error.URLError, OSError):
-                pass
+        env["EVENTHUB_BENCHMARK_SCENARIO"] = args.scenario
+        env["EVENTHUB_BENCHMARK_WARMUP_SECONDS"] = "30"
+        env["EVENTHUB_BENCHMARK_WARMUP_FILE"] = str(RESULTS_DIR / f"{tag}-warmup.json")
+        env["EVENTHUB_BENCHMARK_STATUS_FILE"] = str(RESULTS_DIR / f"{tag}-status.json")
+
+        duration_seconds = {"3m": 180, "5m": 300, "2m": 120}[scenario["run_time"]]
+        ramp_seconds = (scenario["users"] + scenario["spawn_rate"] - 1) // scenario["spawn_rate"]
+        total_runtime = duration_seconds + ramp_seconds + 30
 
         subprocess.run(
             [
@@ -192,7 +194,7 @@ def main() -> int:
                 "--spawn-rate",
                 str(scenario["spawn_rate"]),
                 "--run-time",
-                scenario["run_time"],
+                f"{total_runtime}s",
                 "--csv",
                 str(RESULTS_DIR / tag),
                 "--csv-full-history",
