@@ -196,3 +196,36 @@ Tầng nghiệp vụ ném `DomainError` mang mã ổn định (`VALIDATION_ERROR
 ```json
 { "code": "CONFLICT", "message": "not enough tickets available" }
 ```
+
+## 8. Observability foundation (Phase 2)
+
+Observability là adapter vận hành ở vòng ngoài, không phải port nghiệp vụ. `app/observability`
+chứa correlation context, structured-event helper, registry metrics và SQLAlchemy event adapter;
+`domain`/`application` không import các module này. Mỗi app instance sở hữu registry riêng.
+
+Luồng HTTP là `ObservabilityMiddleware → AuthenticationMiddleware → router → application`.
+Middleware ngoài cùng đặt `ContextVar`, nên cả auth rejection, handled error và unhandled error đều
+có cùng `X-Request-ID`; token luôn được reset sau response. Route label lấy từ template FastAPI sau
+dispatch, không lấy raw URL. Body, query string, header xác thực và cookie không đi vào log/metric.
+
+`/health` là liveness không I/O. `/ready` là readiness database với `SELECT 1` và timeout pool hiện
+hữu; nó không migrate hay create table. `/metrics` là adapter exposition operational và cần được
+giới hạn ở reverse proxy/network khi deploy.
+
+SQLAlchemy instrumentation chỉ dùng public events và giữ nguyên lazy acquisition, transaction,
+Unit of Work cùng pool configuration:
+
+| Metric family | Ý nghĩa chính xác |
+|---|---|
+| `eventhub_db_connections_created_total` | DBAPI connection tạo thành công |
+| `eventhub_db_connection_creation_duration_seconds` | thời gian public dialect connect call |
+| `eventhub_db_pool_checkouts_total` | số checkout hoàn tất |
+| `eventhub_db_pool_checked_out` | số connection đang được giữ |
+| `eventhub_db_pool_overflow_connections` | overflow hiện tại từ public QueuePool API |
+| `eventhub_db_connection_hold_duration_seconds` | checkout đến check-in |
+| `eventhub_db_query_duration_seconds` | before đến after cursor execution, theo success/error |
+
+Không có metric pool acquisition wait. `checkout` callback chạy sau acquisition, nên timestamp ở
+đó chỉ có thể bắt đầu **hold time**. Thử nghiệm nhỏ nhất trong tương lai là bọc đúng public
+`Pool.connect()` call tại composition boundary bằng timer monotonic, kiểm chứng dưới pool contention
+và so sánh semantics/overhead trước khi đưa vào; không dùng private API hoặc eager checkout.

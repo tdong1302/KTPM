@@ -133,10 +133,32 @@ Open:
 
 - `http://127.0.0.1:8000/app/`
 - `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/ready`
+- `http://127.0.0.1:8000/metrics`
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/openapi.json`
 
 Press `Ctrl+C` in the CMD window to stop Uvicorn.
+
+## Inspect observability locally
+
+Trong CMD thứ hai, giữ một correlation ID để tìm cùng request trong JSON log:
+
+```cmd
+curl -i -H "X-Request-ID: local-check-1" http://127.0.0.1:8000/health
+curl -i http://127.0.0.1:8000/ready
+curl http://127.0.0.1:8000/metrics
+```
+
+Log mặc định là JSON một dòng. Có thể đặt `OBSERVABILITY_LOG_FORMAT=text` trong `.env` để đọc local
+dễ hơn; không bật text nếu pipeline log production yêu cầu JSON. Không gửi secret trong request ID.
+Metrics chỉ có label method, route template, status class và query outcome hữu hạn; correlation ID,
+raw URL, user/event ID không phải label.
+
+Compose/Dockerfile hiện tiếp tục dùng `/health` để phát hiện process chết. Vì liveness không chứng
+minh PostgreSQL sẵn sàng, load balancer production phải dùng `/ready` để nhận/rút traffic. `/metrics`
+đang public ở application layer để demo và scrape local; production phải giới hạn nó ở network hoặc
+reverse proxy.
 
 ## Automatic completion worker
 

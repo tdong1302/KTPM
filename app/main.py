@@ -2,19 +2,22 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from time import perf_counter
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.exception_handlers import register_exception_handlers
-from app.api.middleware import AuthenticationMiddleware
-from app.api.routers import auth, bookings, events, health
+from app.api.middleware import AuthenticationMiddleware, ObservabilityMiddleware
+from app.api.routers import auth, bookings, events, health, operations
 from app.config import Settings, get_settings
 from app.infrastructure.clock import SystemClock
 from app.infrastructure.db import orm  # noqa: F401  (registers tables on Base.metadata)
 from app.infrastructure.db.base import Base, build_engine, build_session_factory
 from app.infrastructure.security.bcrypt_hasher import BcryptPasswordHasher
 from app.infrastructure.security.jwt_token_service import JwtTokenService
+from app.observability.logging import configure_eventhub_logging
+from app.observability.metrics import MetricsRegistry
 
 DESCRIPTION = """
 Event ticket booking service - baseline (Phase 1) for the Software Engineering course.
@@ -30,7 +33,8 @@ Obtain a token from `POST /api/auth/login`, then press **Authorize** above.
 """
 
 TAGS_METADATA = [
-    {"name": "health", "description": "Liveness probe."},
+    {"name": "health", "description": "Lightweight liveness probe."},
+    {"name": "operations", "description": "Readiness and metrics endpoints."},
     {"name": "auth", "description": "Registration, login and the current account."},
     {"name": "events", "description": "Event catalogue and lifecycle."},
     {"name": "bookings", "description": "Ticket booking and cancellation."},
@@ -41,8 +45,10 @@ FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_eventhub_logging()
+    metrics = MetricsRegistry(perf_counter)
 
-    engine = build_engine(settings)
+    engine = build_engine(settings, metrics)
     session_factory = build_session_factory(engine)
 
     @asynccontextmanager
@@ -62,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     application.state.settings = settings
+    application.state.metrics = metrics
     application.state.engine = engine
     application.state.session_factory = session_factory
     application.state.clock = SystemClock()
@@ -72,12 +79,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         expires_minutes=settings.jwt_expires_minutes,
     )
 
-    application.add_middleware(
-        AuthenticationMiddleware, token_service=application.state.token_service
-    )
     register_exception_handlers(application)
 
     application.include_router(health.router)
+    application.include_router(operations.router)
     application.include_router(auth.router)
     application.include_router(events.router)
     application.include_router(bookings.router)
@@ -85,6 +90,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/app",
         StaticFiles(directory=FRONTEND_DIR, html=True),
         name="frontend",
+    )
+    application.add_middleware(
+        AuthenticationMiddleware, token_service=application.state.token_service
+    )
+    application.add_middleware(
+        ObservabilityMiddleware,
+        metrics=metrics,
+        routes_provider=lambda: application.routes,
+        log_format=settings.observability_log_format,
     )
 
     return application

@@ -83,6 +83,8 @@ Chi tiết: [docs/architecture.md](docs/architecture.md).
 | Method | Path | Auth | Mô tả |
 |---|---|:---:|---|
 | GET | `/health` | – | Liveness |
+| GET | `/ready` | – | PostgreSQL readiness |
+| GET | `/metrics` | – | Operational Prometheus text metrics |
 | POST | `/api/auth/register` | – | Đăng ký |
 | POST | `/api/auth/login` | – | Đăng nhập, trả access token |
 | GET | `/api/auth/me` | ✅ | **GET cần xác thực** |
@@ -174,8 +176,8 @@ scripts\quality-gate.cmd
 
 Chạy worker liên tục bằng `scripts\run-completion-worker.cmd`; dừng an toàn bằng `Ctrl+C`. Hai biến
 `EVENT_COMPLETION_POLL_SECONDS` (mặc định `60`) và `EVENT_COMPLETION_BATCH_SIZE` (mặc định `100`)
-điều khiển polling và kích thước transaction. Worker không thêm endpoint công khai; OpenAPI vẫn có
-16 operation.
+điều khiển polling và kích thước transaction. Worker không thêm endpoint; hai operational endpoint
+`/ready` và `/metrics` nâng OpenAPI từ 16 operation nghiệp vụ lên tổng cộng 18 operation.
 
 Nếu one-shot trả exit code khác `0`, kiểm tra kết nối database và migration rồi chạy lại; log chỉ
 ghi loại lỗi, không ghi URL kết nối. Continuous mode chờ đúng poll interval sau lỗi nên không tạo
@@ -222,9 +224,11 @@ benchmark. Hướng dẫn thao tác qua frontend/Swagger và chạy demo bằng 
 
 ## 8. Chạy bằng Docker
 
-```bash
+```cmd
 docker compose up -d --build
 curl http://localhost:8000/health
+curl http://localhost:8000/ready
+curl http://localhost:8000/metrics
 ```
 
 Lệnh này dựng PostgreSQL 16 (cổng 5432), chạy Alembic tới `head`, rồi mới khởi động API ở cổng
@@ -252,7 +256,23 @@ trỏ fixture phá schema vào database phát triển.
 
 Chi tiết: [docs/testing.md](docs/testing.md).
 
-## 10. Benchmark
+## 10. Observability
+
+Mọi HTTP response có `X-Request-ID`: ID an toàn từ client được giữ, giá trị thiếu/sai được thay bằng
+ID ngẫu nhiên. Completion log là JSON mặc định và chỉ chứa timestamp, level, logger, event,
+correlation ID, method, route template, status và duration; không ghi body, query string,
+Authorization hay cookie. Đặt `OBSERVABILITY_LOG_FORMAT=text` nếu cần log local dễ đọc hơn.
+
+`/health` chỉ chứng minh process sống; `/ready` chạy `SELECT 1` qua pool hiện hữu để chứng minh
+PostgreSQL sẵn sàng. `/metrics` xuất request/status/duration/in-flight/error cùng connection
+creation, checkout, checked-out, overflow, hold và query timing. Label chỉ dùng method, route
+template, status class và outcome hữu hạn. Production phải chặn `/metrics` ở reverse proxy/network,
+không coi endpoint công khai ở tầng app là quyền truy cập Internet mặc định.
+
+Pool acquisition wait vẫn là **NOT YET MEASURED**: SQLAlchemy `checkout` event chỉ chạy sau khi đã
+lấy được connection, nên không được đổi tên hold time thành wait time.
+
+## 11. Benchmark
 
 Phase 2 BEFORE đã đo đủ **S1–S4**, ba lần cho mỗi cấu hình, trên cùng máy/config. S1 đạt median
 155,78 req/s (p95 39 ms); S2 đạt 226,12 req/s (p95 180 ms); S3 tách đúng `201`/valid `409`, không
@@ -274,23 +294,24 @@ CPU/RSS, variation và phân tích bottleneck:
 [docs/benchmark-baseline-phase2.md](docs/benchmark-baseline-phase2.md). Raw output mới ở
 `artifacts/benchmarks/` và bị Git ignore; `benchmark/results/` giữ evidence Kaggle lịch sử.
 
-## 11. Trạng thái hiện tại
+## 12. Trạng thái hiện tại
 
 Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
-tự động bằng AST, 16 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
+tự động bằng AST, 16 operation nghiệp vụ cùng 2 operation vận hành (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
 frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate automatic-completion thu được
-**270/270 test pass**, gồm **7/7 PostgreSQL concurrency test**, với coverage **97,81%**. Benchmark
-Phase 2 BEFORE S1–S4 đã hoàn tất; S4 chưa đạt saturation trong dải 1–80. Connection-pool wait và
-query/threadpool timing vẫn chưa đo, nên bước tiếp theo là observability foundation chứ chưa phải
-performance tuning. Xem [docs/benchmark-baseline-phase2.md](docs/benchmark-baseline-phase2.md).
+**283/283 test pass**, gồm **7/7 PostgreSQL concurrency test**, với coverage **97,67%**. Benchmark
+Phase 2 BEFORE S1–S4 đã hoàn tất; S4 chưa đạt saturation trong dải 1–80. Observability foundation
+đã đo query execution và connection hold; acquisition wait và threadpool wait vẫn chưa đo chính
+xác. Xem [docs/benchmark-baseline-phase2.md](docs/benchmark-baseline-phase2.md).
 
-## 12. Cấu trúc thư mục
+## 13. Cấu trúc thư mục
 
 ```
 app/
 ├── domain/          Dataclass, enum, quy tắc nghiệp vụ (thuần Python)
 ├── application/     Service + Port (Protocol) — tầng nghiệp vụ
 ├── infrastructure/  SQLAlchemy, repository, UnitOfWork, bcrypt, JWT
+├── observability/   Correlation context, structured events, metrics, SQL timing
 ├── workers/         Tiến trình nền độc lập, không import FastAPI
 └── api/             Router, schema, middleware, exception handler
 alembic/             Migration

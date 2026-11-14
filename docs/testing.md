@@ -51,6 +51,11 @@ Dựng app FastAPI thật, middleware thật, repository SQLAlchemy thật, JWT 
 database là SQLite in-memory. Cost factor của bcrypt được hạ xuống 4 trong fixture để bộ test không
 bị chi phối bởi thời gian băm mật khẩu.
 
+`test_observability.py` còn kiểm tra ID được tạo/giữ/thay, context đồng thời và cleanup, structured
+fields/redaction, route template không chứa resource ID, in-flight cleanup sau lỗi, readiness
+success/failure, metrics endpoint và SQL timing semantics. Readiness failure dùng engine lỗi có kiểm
+soát và khẳng định liveness vẫn `UP`.
+
 Điểm đáng chú ý:
 [`test_auth_and_middleware.py`](../tests/integration/test_auth_and_middleware.py) duyệt qua **toàn
 bộ 9 route được bảo vệ** bằng `parametrize` và khẳng định cả trường hợp không token lẫn token rác
@@ -103,8 +108,9 @@ PostgreSQL test disposable và nằm ngoài unit suite; xem [benchmark scenarios
 
 ## Những gì hiện CHƯA có
 
-- Phase 2 BEFORE S1–S4 đã chạy ba lần mỗi cấu hình. Pool acquisition wait, query time và threadpool
-  wait vẫn chưa có instrumentation; xem [baseline report](benchmark-baseline-phase2.md).
+- Phase 2 BEFORE S1–S4 đã chạy ba lần mỗi cấu hình. Query execution, connection creation/hold và
+  pool utilization nay có instrumentation. Pool acquisition wait và threadpool wait vẫn chưa đo
+  chính xác; xem [baseline report](benchmark-baseline-phase2.md).
 - Chưa có kiểm thử trên PostgreSQL cho các luồng API thông thường (integration test dùng SQLite).
   Những phần bắt buộc kiểm tra riêng trên PostgreSQL gồm `SELECT ... FOR UPDATE` và Alembic DDL
   thêm check constraint; SQLite integration dùng `create_all()` nên không thay thế được hai kiểm tra này.

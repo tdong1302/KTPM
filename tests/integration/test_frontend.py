@@ -57,7 +57,7 @@ def test_frontend_does_not_displace_api_or_documentation(client):
         for method in path_item
         if method in {"get", "post", "patch", "delete"}
     }
-    assert len(operations) == 16
+    assert len(operations) == 18
     assert ("GET", "/api/events") in operations
     assert ("GET", "/api/events/mine") in operations
     assert ("POST", "/api/bookings") in operations
