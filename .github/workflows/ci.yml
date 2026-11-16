@@ -125,7 +125,7 @@ jobs:
 
       - name: Build and start containerized API
         env:
-          POSTGRES_PORT: "55432"
+          POSTGRES_PORT: "0" # Docker assigns an available host port.
           POSTGRES_PASSWORD: compose-ci-local-only
           POSTGRES_DB: eventhub_compose_ci
           JWT_SECRET: compose-ci-ephemeral-secret-at-least-32-characters
