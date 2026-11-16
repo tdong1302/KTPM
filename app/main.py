@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.exception_handlers import register_exception_handlers
 from app.api.middleware import AuthenticationMiddleware, ObservabilityMiddleware
-from app.api.routers import auth, bookings, events, health, operations
+from app.api.routers import auth, bookings, events, health, operations, reservations
 from app.config import Settings, get_settings
 from app.infrastructure.clock import SystemClock
 from app.infrastructure.db import orm  # noqa: F401  (registers tables on Base.metadata)
@@ -38,6 +38,7 @@ TAGS_METADATA = [
     {"name": "auth", "description": "Registration, login and the current account."},
     {"name": "events", "description": "Event catalogue and lifecycle."},
     {"name": "bookings", "description": "Ticket booking and cancellation."},
+    {"name": "reservations", "description": "Temporary ticket holds."},
 ]
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth.router)
     application.include_router(events.router)
     application.include_router(bookings.router)
+    application.include_router(reservations.router)
     application.mount(
         "/app",
         StaticFiles(directory=FRONTEND_DIR, html=True),

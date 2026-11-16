@@ -2,9 +2,10 @@
 
 from datetime import datetime, timezone
 
-from app.domain.enums import BookingStatus, EventStatus, UserRole
+from app.domain.enums import BookingStatus, EventStatus, ReservationStatus, UserRole
 from app.domain.models import Booking, Event, User
-from app.infrastructure.db.orm import BookingRecord, EventRecord, UserRecord
+from app.domain.reservation import Reservation
+from app.infrastructure.db.orm import BookingRecord, EventRecord, ReservationRecord, UserRecord
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -135,3 +136,29 @@ def apply_booking(record: BookingRecord, booking: Booking) -> BookingRecord:
     record.status = booking.status.value
     record.cancelled_at = booking.cancelled_at
     return record
+
+
+def reservation_to_domain(record: ReservationRecord) -> Reservation:
+    return Reservation(
+        id=record.id,
+        user_id=record.user_id,
+        event_id=record.event_id,
+        booking_id=record.booking_id,
+        quantity=record.quantity,
+        status=ReservationStatus(record.status),
+        created_at=_as_utc(record.created_at),
+        expires_at=_as_utc(record.expires_at),
+    )
+
+
+def reservation_to_record(reservation: Reservation) -> ReservationRecord:
+    return ReservationRecord(
+        id=reservation.id,
+        user_id=reservation.user_id,
+        event_id=reservation.event_id,
+        booking_id=reservation.booking_id,
+        quantity=reservation.quantity,
+        status=reservation.status.value,
+        created_at=reservation.created_at,
+        expires_at=reservation.expires_at,
+    )

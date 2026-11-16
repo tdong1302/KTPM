@@ -3,6 +3,7 @@
 import jwt
 
 from tests.conftest import create_published_event, event_payload, register_and_login
+from tests.unit.fakes import FakeClock
 
 
 def create_draft(client, organizer, title: str) -> dict:
@@ -44,8 +45,13 @@ class TestOrganizerEventDashboard:
             "CANCELLED",
         }
 
-    def test_status_filter_and_pagination_use_existing_conventions(self, client, organizer):
+    def test_status_filter_and_pagination_use_existing_conventions(
+        self, client, organizer, monkeypatch
+    ):
+        clock = FakeClock(client.app.state.clock.now())
+        monkeypatch.setattr(client.app.state, "clock", clock)
         first = create_draft(client, organizer, "First draft")
+        clock.advance(seconds=1)
         second = create_draft(client, organizer, "Second draft")
         create_published_event(organizer, title="Published")
 
@@ -61,12 +67,20 @@ class TestOrganizerEventDashboard:
         assert body["items"][0]["id"] == first["id"]
         assert body["items"][0]["id"] != second["id"]
 
-    def test_newest_events_are_returned_first_with_deterministic_ids(self, client, organizer):
-        events = [create_draft(client, organizer, f"Draft {index}") for index in range(3)]
+    def test_newest_events_are_returned_first_with_deterministic_ids(
+        self, client, organizer, monkeypatch
+    ):
+        clock = FakeClock(client.app.state.clock.now())
+        monkeypatch.setattr(client.app.state, "clock", clock)
+        first = create_draft(client, organizer, "First draft")
+        second = create_draft(client, organizer, "Second draft")
+        clock.advance(seconds=1)
+        newest = create_draft(client, organizer, "Newest draft")
 
         items = client.get("/api/events/mine", headers=organizer.headers).json()["items"]
 
-        assert [item["id"] for item in items] == [event["id"] for event in reversed(events)]
+        assert first["created_at"] == second["created_at"]
+        assert [item["id"] for item in items] == [newest["id"], first["id"], second["id"]]
 
     def test_empty_organizer_receives_an_empty_page(self, client):
         organizer = register_and_login(client, "empty-organizer@example.com", role="ORGANIZER")

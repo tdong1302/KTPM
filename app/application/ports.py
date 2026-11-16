@@ -12,6 +12,7 @@ from typing import Protocol, runtime_checkable
 
 from app.domain.enums import BookingStatus, EventStatus, UserRole
 from app.domain.models import Booking, Event, User
+from app.domain.reservation import Reservation
 
 
 @dataclass(frozen=True)
@@ -113,12 +114,26 @@ class BookingRepository(Protocol):
 
 
 @runtime_checkable
+class ReservationRepository(Protocol):
+    def add(self, reservation: Reservation) -> Reservation: ...
+
+    def get_by_id(self, reservation_id: int) -> Reservation | None: ...
+
+    def get_for_update(self, reservation_id: int) -> Reservation | None: ...
+
+    def update(self, reservation: Reservation) -> Reservation: ...
+
+    def list_due_ids(self, now: datetime, limit: int) -> list[int]: ...
+
+
+@runtime_checkable
 class UnitOfWork(Protocol):
     """Transaction boundary. Services open one per use case and commit at the end."""
 
     users: UserRepository
     events: EventRepository
     bookings: BookingRepository
+    reservations: ReservationRepository
 
     def __enter__(self) -> "UnitOfWork": ...
 

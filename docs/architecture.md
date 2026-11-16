@@ -229,3 +229,15 @@ Không có metric pool acquisition wait. `checkout` callback chạy sau acquisit
 đó chỉ có thể bắt đầu **hold time**. Thử nghiệm nhỏ nhất trong tương lai là bọc đúng public
 `Pool.connect()` call tại composition boundary bằng timer monotonic, kiểm chứng dưới pool contention
 và so sánh semantics/overhead trước khi đưa vào; không dùng private API hoặc eager checkout.
+
+## RES-01 — Giữ chỗ có thời hạn
+
+`ReservationService` dùng cùng Unit of Work và khóa dòng sự kiện với luồng đặt vé trực tiếp.
+Tạo giữ chỗ giảm `events.available_tickets`. Xác nhận chuyển giữ chỗ thành `CONFIRMED` và
+tạo booking trong cùng transaction. Worker riêng tìm các ID `RESERVED` đến hạn theo thứ tự
+`expires_at, id` qua chỉ mục `(status, expires_at, id)`.
+
+Xác nhận, hủy và thu hồi đều khóa sự kiện trước, sau đó khóa và đọc lại giữ chỗ. Mỗi lượt
+thu hồi dùng một transaction riêng. Nhiều worker có thể chọn cùng ứng viên nhưng chỉ worker
+thấy trạng thái `RESERVED` sau khi lấy khóa mới được hoàn vé. API dùng PostgreSQL làm nguồn
+trạng thái và tồn kho.

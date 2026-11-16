@@ -59,6 +59,17 @@ services:
     healthcheck:
       disable: true
 
+  reservation-expiry:
+    <<: *app-image
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment: *app-environment
+    command: ["python", "-m", "app.workers.reservation_expiry"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+
   postgres-test:
     image: postgres:16-alpine
     profiles: ["test"]

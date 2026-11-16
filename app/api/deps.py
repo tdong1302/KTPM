@@ -13,6 +13,7 @@ from app.application.auth_service import AuthService
 from app.application.booking_service import BookingService
 from app.application.event_service import EventService
 from app.application.ports import TokenClaims
+from app.application.reservation_service import ReservationService
 from app.domain.errors import UnauthorizedError
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -45,6 +46,10 @@ def get_booking_service(request: Request) -> BookingService:
     return BookingService(uow=get_unit_of_work(request), clock=request.app.state.clock)
 
 
+def get_reservation_service(request: Request) -> ReservationService:
+    return ReservationService(uow=get_unit_of_work(request), clock=request.app.state.clock)
+
+
 def current_principal(request: Request, _credentials=Depends(bearer_scheme)) -> TokenClaims:
     """Read the principal that the middleware already established."""
     principal = getattr(request.state, "principal", None)
@@ -62,3 +67,4 @@ OptionalUser = Annotated[TokenClaims | None, Depends(optional_principal)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 EventServiceDep = Annotated[EventService, Depends(get_event_service)]
 BookingServiceDep = Annotated[BookingService, Depends(get_booking_service)]
+ReservationServiceDep = Annotated[ReservationService, Depends(get_reservation_service)]
