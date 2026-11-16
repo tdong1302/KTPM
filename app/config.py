@@ -1,6 +1,7 @@
 """Application configuration, read from environment / .env."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,6 +32,8 @@ class Settings(BaseSettings):
 
     event_completion_poll_seconds: float = Field(default=60, gt=0, le=3600)
     event_completion_batch_size: int = Field(default=100, ge=1, le=1000)
+
+    observability_log_format: Literal["json", "text"] = "json"
 
     @model_validator(mode="after")
     def reject_insecure_production_secret(self) -> "Settings":

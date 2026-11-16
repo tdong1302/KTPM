@@ -14,12 +14,12 @@
 
 ## Xác minh
 
-- `scripts\quality-gate.cmd` đạt trên Compose project kiểm thử riêng. **276 test pass**, gồm **11 test concurrency PostgreSQL**, **0 skip**, coverage **96,62%**.
+- Sau khi tích hợp `main` tại `40544f2`, chạy `uv run --frozen python -m pytest -q --cov=app --cov-fail-under=95` với PostgreSQL disposable. **303 test pass**, gồm **11 test concurrency PostgreSQL**, **0 skip**, coverage **96,66%**.
 - `alembic upgrade head` chạy từ PostgreSQL rỗng. `alembic heads` và `alembic current` cùng trả về `8d2fe144b7c0`. Script kiểm tra đủ 14 ràng buộc CHECK.
-- Docker Compose build và khởi động API, migration và worker. `/health` trả `UP`, OpenAPI có endpoint giữ chỗ và `docker compose exec -T reservation-expiry python -m app.workers.reservation_expiry --once` thành công.
-- `git diff --check` đạt.
+- Docker Compose build và khởi động API và worker trên project kiểm thử riêng. `/health` trả `UP`, `/ready` xác nhận PostgreSQL, request có correlation ID. Luồng giữ vé, hủy và xác nhận lặp đạt. `docker compose exec -T reservation-expiry python -m app.workers.reservation_expiry --once` thành công.
+- Ruff, Docker Compose config và `git diff --check` đạt.
 
 ## Tích hợp
 
-- Nhánh `feature/expiring-reservation` từ `main` tại `e592db3`. Working tree sạch sau khi kiểm tra.
+- Nhánh `feature/expiring-reservation` đã tích hợp `main` tại `40544f2`. OpenAPI đăng ký cả endpoint giữ chỗ và endpoint vận hành. Test dashboard kiểm soát thời gian tạo sự kiện để kiểm tra thứ tự và phân trang ổn định.
 - Member 3 có thể dùng hợp đồng API để chuẩn bị rate limiting và giao diện. Khi mở PR, đặt base là `main`, mời Huy Anh review và giữ thứ tự merge trong [kế hoạch Pha 2](phase2-team-plan.md).

@@ -24,9 +24,10 @@ compose.log
 .uv-task-cache/
 .pytest-tmp/
 artifacts/demo/
+artifacts/benchmarks/
 
-# Raw benchmark output IS committed: the course report needs the evidence behind
-# every number in docs/benchmark.md.
+# Historical Kaggle CSV evidence in benchmark/results is committed. New raw benchmark JSON, CSV
+# and logs stay under artifacts/benchmarks; only compact reviewed summaries belong in docs/.
 
 # Local working notes, not part of the project.
 CLAUDE.md

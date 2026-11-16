@@ -83,6 +83,8 @@ Chi tiết: [docs/architecture.md](docs/architecture.md).
 | Method | Path | Auth | Mô tả |
 |---|---|:---:|---|
 | GET | `/health` | – | Liveness |
+| GET | `/ready` | – | PostgreSQL readiness |
+| GET | `/metrics` | – | Operational Prometheus text metrics |
 | POST | `/api/auth/register` | – | Đăng ký |
 | POST | `/api/auth/login` | – | Đăng nhập, trả access token |
 | GET | `/api/auth/me` | ✅ | **GET cần xác thực** |
@@ -174,7 +176,8 @@ scripts\quality-gate.cmd
 
 Chạy worker liên tục bằng `scripts\run-completion-worker.cmd`; dừng an toàn bằng `Ctrl+C`. Hai biến
 `EVENT_COMPLETION_POLL_SECONDS` (mặc định `60`) và `EVENT_COMPLETION_BATCH_SIZE` (mặc định `100`)
-điều khiển polling và kích thước transaction. Worker không thêm endpoint công khai.
+điều khiển polling và kích thước transaction. Worker không thêm endpoint; hai operational endpoint
+`/ready` và `/metrics` cùng 20 operation nghiệp vụ xuất hiện trong OpenAPI.
 
 Nếu one-shot trả exit code khác `0`, kiểm tra kết nối database và migration rồi chạy lại; log chỉ
 ghi loại lỗi, không ghi URL kết nối. Continuous mode chờ đúng poll interval sau lỗi nên không tạo
@@ -221,9 +224,11 @@ benchmark. Hướng dẫn thao tác qua frontend/Swagger và chạy demo bằng 
 
 ## 8. Chạy bằng Docker
 
-```bash
+```cmd
 docker compose up -d --build
 curl http://localhost:8000/health
+curl http://localhost:8000/ready
+curl http://localhost:8000/metrics
 ```
 
 Lệnh này dựng PostgreSQL 16 (cổng 5432), chạy Alembic tới `head`, rồi mới khởi động API ở cổng
@@ -237,72 +242,79 @@ Dừng: `docker compose down` (thêm `-v` để xoá luôn dữ liệu).
 
 ## 9. Chạy test
 
-```bash
-uv run pytest                    # toàn bộ; concurrency SKIP nếu thiếu TEST_DATABASE_URL
-uv run pytest tests/unit         # unit + kiến trúc
-uv run pytest --cov=app          # coverage
+```cmd
+scripts\run-tests.cmd
+uv run --frozen pytest tests\unit
+uv run --frozen pytest --cov=app
 ```
 
 Bật test chống bán vượt vé trên database disposable riêng (cổng 5433):
 
-```bash
-docker compose --profile test up -d postgres-test
-# Windows PowerShell:
-$env:TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
-# Linux/macOS:
-export TEST_DATABASE_URL="postgresql+psycopg://eventhub_test:eventhub_test@localhost:5433/eventhub_test_disposable"
-
-uv run pytest tests/concurrency -v
+```cmd
+scripts\run-tests.cmd --with-db tests\concurrency -v
 ```
 
-Hoặc dùng `scripts/run-tests.ps1 -WithDb` / `scripts/run-tests.sh --with-db`. Các script không bao
-giờ trỏ fixture phá schema vào database phát triển.
+Wrapper tự cấu hình database test disposable mà không yêu cầu in connection URL. Nó không bao giờ
+trỏ fixture phá schema vào database phát triển.
 
 Chi tiết: [docs/testing.md](docs/testing.md).
 
-## 10. Benchmark
+## 10. Observability
 
-Đã đo các kịch bản **S2 và S3** trên Kaggle CPU (Xeon @2.20GHz, 4 vCPU). S2 ghi nhận
-**47 612 request, 0 lỗi,
-159,30 req/s, p50 240 ms, p95 430 ms**. Số liệu đầy đủ và phần phân tích ở
-[docs/benchmark.md](docs/benchmark.md); dữ liệu thô ở [benchmark/results/](benchmark/results/).
-S1 và S4 chưa chạy. Các giới hạn về provenance và khả năng lặp lại được ghi trong
-[`docs/stabilization-report.md`](docs/stabilization-report.md).
+Mọi HTTP response có `X-Request-ID`: ID an toàn từ client được giữ, giá trị thiếu/sai được thay bằng
+ID ngẫu nhiên. Completion log là JSON mặc định và chỉ chứa timestamp, level, logger, event,
+correlation ID, method, route template, status và duration; không ghi body, query string,
+Authorization hay cookie. Đặt `OBSERVABILITY_LOG_FORMAT=text` nếu cần log local dễ đọc hơn.
 
-```bash
-python benchmark/seed_data.py --reset --events 500
-locust -f benchmark/locustfile.py --headless --host http://localhost:8000 \
-       --users 100 --spawn-rate 20 --run-time 5m --csv benchmark/results/s2-baseline
+`/health` chỉ chứng minh process sống; `/ready` chạy `SELECT 1` qua pool hiện hữu để chứng minh
+PostgreSQL sẵn sàng. `/metrics` xuất request/status/duration/in-flight/error cùng connection
+creation, checkout, checked-out, overflow, hold và query timing. Label chỉ dùng method, route
+template, status class và outcome hữu hạn. Production phải chặn `/metrics` ở reverse proxy/network,
+không coi endpoint công khai ở tầng app là quyền truy cập Internet mặc định.
+
+Pool acquisition wait vẫn là **NOT YET MEASURED**: SQLAlchemy `checkout` event chỉ chạy sau khi đã
+lấy được connection, nên không được đổi tên hold time thành wait time.
+
+## 11. Benchmark
+
+Phase 2 BEFORE đã đo đủ **S1–S4**, ba lần cho mỗi cấu hình, trên cùng máy/config. S1 đạt median
+155,78 req/s (p95 39 ms); S2 đạt 226,12 req/s (p95 180 ms); S3 tách đúng `201`/valid `409`, không
+có lỗi thật và giữ invariant tồn kho. S4 tăng tới 80 user với median 212,05 req/s, p95 55 ms,
+không lỗi; saturation chưa đạt trong dải an toàn đã thử.
+
+```cmd
+scripts\run-benchmark.cmd --scenario s1 --scenario s2 --scenario s3
+scripts\run-benchmark.cmd --scenario s4
+scripts\run-benchmark.cmd --scenario s1 --scenario s4 --smoke
 ```
 
 Trên Kaggle CPU (cấu hình chuẩn của môn): xem hướng dẫn từng bước ở
 [benchmark/kaggle/README.md](benchmark/kaggle/README.md). Kaggle là notebook nên chạy trong
 ô code: `!python benchmark/kaggle/run_baseline.py --scenario s2`.
 
-Kịch bản cố định: [benchmark/scenarios.md](benchmark/scenarios.md).
-Bảng ghi kết quả: [docs/benchmark.md](docs/benchmark.md).
+Kịch bản cố định: [benchmark/scenarios.md](benchmark/scenarios.md). Baseline hiện hành, provenance,
+CPU/RSS, variation và phân tích bottleneck:
+[docs/benchmark-baseline-phase2.md](docs/benchmark-baseline-phase2.md). Raw output mới ở
+`artifacts/benchmarks/` và bị Git ignore; `benchmark/results/` giữ evidence Kaggle lịch sử.
 
-## 11. Trạng thái hiện tại
+## 12. Trạng thái hiện tại
 
 Pha 1 có kiến trúc phân tầng với ràng buộc business layer không import framework/DB được kiểm chứng
-tự động bằng AST, 16 endpoint REST (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
+tự động bằng AST, 16 operation nghiệp vụ cùng 2 operation vận hành (đủ GET/POST/DELETE, có route yêu cầu xác thực qua middleware),
 frontend MVP tại `/app/`, Swagger và đóng gói Docker. Quality gate automatic-completion thu được
-**257/257 test pass**, gồm **7/7 PostgreSQL concurrency test**, với coverage **97,56%**. Đã chạy load test thật
-trên Kaggle CPU cho hai kịch bản S2 (baseline throughput) và S3 (tranh chấp ghi) — số liệu và phân
-tích ở [docs/benchmark.md](docs/benchmark.md).
+**283/283 test pass**, gồm **7/7 PostgreSQL concurrency test**, với coverage **97,67%**. Benchmark
+Phase 2 BEFORE S1–S4 đã hoàn tất; S4 chưa đạt saturation trong dải 1–80. Observability foundation
+đã đo query execution và connection hold; acquisition wait và threadpool wait vẫn chưa đo chính
+xác. Xem [docs/benchmark-baseline-phase2.md](docs/benchmark-baseline-phase2.md).
 
-Còn thiếu: kịch bản benchmark S1 và S4 chưa chạy — S4 quan trọng nhất vì nó xác định nút thắt hiệu
-năng thực sự (CPU/connection pool/threadpool), cần có trước khi bắt đầu Pha 2. Pha 2 (cải tiến chất
-lượng) chưa bắt đầu; danh sách ứng viên quality attribute và cách đo được ghi ở
-[docs/phase2.md](docs/phase2.md), chưa có kết luận nào được viết ra trước khi có số đo thật.
-
-## 12. Cấu trúc thư mục
+## 13. Cấu trúc thư mục
 
 ```
 app/
 ├── domain/          Dataclass, enum, quy tắc nghiệp vụ (thuần Python)
 ├── application/     Service + Port (Protocol) — tầng nghiệp vụ
 ├── infrastructure/  SQLAlchemy, repository, UnitOfWork, bcrypt, JWT
+├── observability/   Correlation context, structured events, metrics, SQL timing
 ├── workers/         Tiến trình nền độc lập, không import FastAPI
 └── api/             Router, schema, middleware, exception handler
 alembic/             Migration

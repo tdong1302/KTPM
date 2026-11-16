@@ -1,9 +1,26 @@
 # Benchmark
 
-> **Trạng thái: đã đo S2 và S3. S1, S4 chưa chạy.**
-> Mọi con số trong tài liệu này đến từ một lần chạy thật trên Kaggle CPU; dữ liệu thô nằm trong
-> [`benchmark/results/`](../benchmark/results/). Các ô còn ghi *(chưa đo)* là **chưa chạy**, không
-> phải bỏ sót — và sẽ không được điền bằng số ước lượng.
+> **Trạng thái hiện tại:** Phase 2 BEFORE đã chạy đủ S1, S2, S3 và S4, mỗi cấu hình ba lần, với
+> warm-up tách riêng và CPU/RSS/status classification. Báo cáo hiện hành là
+> [`benchmark-baseline-phase2.md`](benchmark-baseline-phase2.md).
+
+Sau khi thêm observability, so sánh overhead phải dùng lại chính runner này với cùng máy,
+PostgreSQL, seed, một Uvicorn worker, pool `5 + 10`, warm-up 30 giây và ba repetition. Tối thiểu:
+
+```cmd
+scripts\run-benchmark.cmd --scenario s1 --scenario s4
+```
+
+Raw AFTER artifacts vẫn nằm trong `artifacts\benchmarks\` (Git-ignored); chỉ báo cáo so sánh gọn
+được lưu trong docs. So sánh median cùng range repetition cho req/s, p95, p99, CPU, RSS và error
+rate. Giảm throughput trên khoảng 10% hoặc tăng p95 trên khoảng 15% **ngoài** range BEFORE cần điều
+tra instrumentation cost; không được tuning pool/worker/business để làm đẹp kết quả.
+
+Kết quả observability AFTER hiện hành: [benchmark-observability-overhead.md](benchmark-observability-overhead.md).
+
+Các mục bên dưới giữ nguyên **baseline lịch sử trên Kaggle ngày 2026-09-20** để bảo toàn bằng
+chứng cũ trong [`benchmark/results/`](../benchmark/results/). Số lịch sử chỉ có một lần S2/S3,
+khác máy và khác measurement boundary; không dùng để so trực tiếp với baseline Phase 2 mới.
 
 ## 1. Cấu hình phần cứng cố định
 

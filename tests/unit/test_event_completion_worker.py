@@ -35,6 +35,30 @@ def test_once_drains_multiple_bounded_batches():
     assert service.batch_sizes == [2, 2]
 
 
+def test_batch_log_is_structured_and_has_stable_operation_fields(caplog):
+    service = StubService([CompletionBatchResult(3, 2, 1, False)])
+
+    with caplog.at_level(logging.INFO, logger="eventhub.worker-test"):
+        drain(
+            service,
+            batch_size=10,
+            logger=logging.getLogger("eventhub.worker-test"),
+            operation_id="operation-1",
+        )
+
+    event = next(
+        record.event_fields
+        for record in caplog.records
+        if getattr(record, "event_name", "") == "event_completion_batch_completed"
+    )
+    assert event["operation_id"] == "operation-1"
+    assert len(event["batch_id"]) == 32
+    assert event["batch_size"] == 10
+    assert event["examined"] == 3
+    assert event["completed"] == 2
+    assert event["duration_seconds"] >= 0
+
+
 def test_continuous_mode_uses_configured_interval_and_stops_cooperatively():
     stop = StopEvent()
     service = StubService([CompletionBatchResult(0, 0, 0, False)])
@@ -55,6 +79,25 @@ def test_continuous_mode_uses_configured_interval_and_stops_cooperatively():
 
     assert service.batch_sizes == [17]
     assert waits == [2.5]
+
+
+def test_default_wait_checks_for_shutdown_in_bounded_slices():
+    class WakingStop:
+        stopped = False
+        waits = []
+
+        def is_set(self):
+            return self.stopped
+
+        def wait(self, seconds):
+            self.waits.append(seconds)
+            self.stopped = True
+            return True
+
+    stop = WakingStop()
+
+    assert worker._responsive_wait(stop, 60) is True
+    assert stop.waits and stop.waits[0] <= 0.5
 
 
 def test_continuous_mode_logs_only_exception_type_and_retries(caplog):
@@ -110,7 +153,7 @@ def test_main_disposes_engine_after_successful_once_run(monkeypatch):
     monkeypatch.setattr(
         worker,
         "drain",
-        lambda service, batch_size: (
+        lambda service, batch_size, **kwargs: (
             seen.append(batch_size) or worker.CompletionRunResult(1, 0, 0, 0)
         ),
     )
@@ -139,7 +182,9 @@ def test_main_returns_nonzero_and_disposes_engine_after_batch_failure(monkeypatc
     monkeypatch.setattr(worker, "SqlAlchemyUnitOfWork", lambda factory: object())
     monkeypatch.setattr(worker, "EventCompletionService", lambda uow, clock: object())
     monkeypatch.setattr(
-        worker, "drain", lambda service, batch_size: (_ for _ in ()).throw(RuntimeError(secret))
+        worker,
+        "drain",
+        lambda service, batch_size, **kwargs: (_ for _ in ()).throw(RuntimeError(secret)),
     )
     monkeypatch.setattr(worker.signal, "signal", lambda *args: None)
 

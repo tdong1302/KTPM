@@ -20,6 +20,7 @@ def test_local_environment_allows_documented_development_defaults() -> None:
     assert settings.db_pool_size == 5
     assert settings.event_completion_poll_seconds == 60
     assert settings.event_completion_batch_size == 100
+    assert settings.observability_log_format == "json"
 
 
 def test_production_rejects_the_development_jwt_secret() -> None:
@@ -50,8 +51,9 @@ def test_production_accepts_a_private_jwt_secret() -> None:
         ("event_completion_poll_seconds", 3601),
         ("event_completion_batch_size", 0),
         ("event_completion_batch_size", 1001),
+        ("observability_log_format", "xml"),
     ],
 )
-def test_invalid_operational_limits_are_rejected(field: str, value: int) -> None:
+def test_invalid_operational_limits_are_rejected(field: str, value: int | str) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **{field: value})
